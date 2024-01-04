@@ -1,0 +1,24 @@
+[
+  {
+    "name": "mattermost",
+    "platforms": "linux/amd64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-amd64.tar.gz?src=docker"
+      }
+    }
+  },
+  {
+    "name": "mattermost",
+    "platforms": "linux/arm64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-arm64.tar.gz?src=docker"
+      }
+    }
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "outline",
+    "platforms": "linux/amd64",
+    "build": {
+      "context": "./",
+      "dockerfile": "./Dockerfile"
+    }
+  },
+  {
+    "name": "outline",
+    "platforms": "linux/arm64",
+    "build": {
+      "context": "./",
+      "dockerfile": "./Dockerfile"
+    }
+  }
+]
