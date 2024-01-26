@@ -11,3 +11,14 @@ Each application receives one or more matrices to list the different architectur
 The workflow runs weekly (Sunday - 03:00 am) or can be triggered manually from the Github user interface (each image workflow can be triggered individually if required).
 
 > *__Notes:__ Before each application build, the CI compares the last tag of the official version with the last tag of the mirror image to check whether a new build should be triggered.*
+
+
+## Images
+
+| Application | Pull command                                              |
+| ----------- | --------------------------------------------------------- |
+| Mattermost  | docker pull ghcr.io/this-is-tobi/mirror/mattermost:latest |
+| Outline     | docker pull ghcr.io/this-is-tobi/mirror/outline:latest    |
+
+> *__Notes:__ All images are mirrored with the official tag version.*
+> 
