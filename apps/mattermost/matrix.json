@@ -1,6 +1,6 @@
 [
   {
-    "name": "mattermost",
+    "arch": "amd64",
     "platforms": "linux/amd64",
     "build": {
       "context": "./server/build",
@@ -11,7 +11,7 @@
     }
   },
   {
-    "name": "mattermost",
+    "arch": "arm64",
     "platforms": "linux/arm64",
     "build": {
       "context": "./server/build",

@@ -42,6 +42,10 @@ permissions:
   contents: read
   packages: write
 
+env:
+  IMAGE_BASE_NAME: base-outline
+  IMAGE_NAME: outline
+
 jobs:
   infos:
     name: Get Outline and mirror infos
@@ -103,9 +107,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: buildx-${{ matrix.images.platforms }}-${{ matrix.images.name }}-${{ needs.infos.outputs.tag }}
+          key: buildx-${{ matrix.images.platforms }}-${{ env.IMAGE_BASE_NAME }}-${{ needs.infos.outputs.tag }}
           restore-keys: |
-            buildx-${{ matrix.images.platforms }}-${{ matrix.images.name }}-
+            buildx-${{ matrix.images.platforms }}-${{ env.IMAGE_BASE_NAME }}-
 
       - name: Set up QEMU (for multi platform build)
         uses: docker/setup-qemu-action@v3
@@ -127,7 +131,7 @@ jobs:
           file: ${{ matrix.images.build.dockerfile }}
           provenance: false
           platforms: ${{ matrix.images.platforms }}
-          outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ matrix.images.name }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             MM_PACKAGE=${{ matrix.images.build.args.MM_PACKAGE }}
           # cache-from: type=gha
@@ -145,15 +149,15 @@ jobs:
 
       - name: Export digest
         run: |
-          mkdir -p /tmp/digests/${{ matrix.images.name }}
+          mkdir -p /tmp/digests/${{ env.IMAGE_BASE_NAME }}
           digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${{ matrix.images.name }}/${digest#sha256:}"
+          touch "/tmp/digests/${{ env.IMAGE_BASE_NAME }}/${digest#sha256:}"
 
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.images.name }}
-          path: /tmp/digests/${{ matrix.images.name }}/*
+          name: digests-${{ env.IMAGE_BASE_NAME }}-${{ matrix.images.arch }}
+          path: /tmp/digests/${{ env.IMAGE_BASE_NAME }}/*
           if-no-files-found: error
           retention-days: 1
 
@@ -164,15 +168,13 @@ jobs:
     needs:
       - infos
       - build-base
-    strategy:
-      matrix:
-        images: ${{ fromJSON(needs.infos.outputs.build-matrix-base) }}
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
-          name: digests-${{ matrix.images.name }}
-          path: /tmp/digests/${{ matrix.images.name }}
+          pattern: digests-${{ env.IMAGE_BASE_NAME }}-*
+          path: /tmp/digests/${{ env.IMAGE_BASE_NAME }}
+          merge-multiple: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -181,7 +183,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ matrix.images.name }}
+          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}
           tags: |
             type=raw,value=${{ needs.infos.outputs.tag }},enable=${{ needs.infos.outputs.tag != '' }}
             type=raw,value=latest
@@ -195,14 +197,14 @@ jobs:
           logout: true
 
       - name: Create manifest list and push
-        working-directory: /tmp/digests/${{ matrix.images.name }}
+        working-directory: /tmp/digests/${{ env.IMAGE_BASE_NAME }}
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ matrix.images.name }}@sha256:%s ' *)
+            $(printf '${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@sha256:%s ' *)
 
       - name: Inspect image
         run: |
-          docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ matrix.images.name }}:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ steps.meta.outputs.version }}
 
   build:
     name: Build application
@@ -233,9 +235,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: buildx-${{ matrix.images.platforms }}-${{ matrix.images.name }}-${{ needs.infos.outputs.tag }}
+          key: buildx-${{ matrix.images.platforms }}-${{ env.IMAGE_NAME }}-${{ needs.infos.outputs.tag }}
           restore-keys: |
-            buildx-${{ matrix.images.platforms }}-${{ matrix.images.name }}-
+            buildx-${{ matrix.images.platforms }}-${{ env.IMAGE_NAME }}-
 
       - name: Set up QEMU (for multi platform build)
         uses: docker/setup-qemu-action@v3
@@ -257,7 +259,7 @@ jobs:
           file: ${{ matrix.images.build.dockerfile }}
           provenance: false
           platforms: ${{ matrix.images.platforms }}
-          outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ matrix.images.name }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             MM_PACKAGE=${{ matrix.images.build.args.MM_PACKAGE }}
           # cache-from: type=gha
@@ -275,15 +277,15 @@ jobs:
 
       - name: Export digest
         run: |
-          mkdir -p /tmp/digests/${{ matrix.images.name }}
+          mkdir -p /tmp/digests/${{ env.IMAGE_NAME }}
           digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${{ matrix.images.name }}/${digest#sha256:}"
+          touch "/tmp/digests/${{ env.IMAGE_NAME }}/${digest#sha256:}"
 
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.images.name }}
-          path: /tmp/digests/${{ matrix.images.name }}/*
+          name: digests-${{ env.IMAGE_NAME }}-${{ matrix.images.arch }}
+          path: /tmp/digests/${{ env.IMAGE_NAME }}/*
           if-no-files-found: error
           retention-days: 1
 
@@ -296,15 +298,13 @@ jobs:
       - build-base
       - merge-base
       - build
-    strategy:
-      matrix:
-        images: ${{ fromJSON(needs.infos.outputs.build-matrix) }}
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
-          name: digests-${{ matrix.images.name }}
-          path: /tmp/digests/${{ matrix.images.name }}
+          pattern: digests-${{ env.IMAGE_NAME }}-*
+          path: /tmp/digests/${{ env.IMAGE_NAME }}
+          merge-multiple: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -313,7 +313,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ matrix.images.name }}
+          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ needs.infos.outputs.tag }},enable=${{ needs.infos.outputs.tag != '' }}
             type=raw,value=latest
@@ -327,11 +327,11 @@ jobs:
           logout: true
 
       - name: Create manifest list and push
-        working-directory: /tmp/digests/${{ matrix.images.name }}
+        working-directory: /tmp/digests/${{ env.IMAGE_NAME }}
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ matrix.images.name }}@sha256:%s ' *)
+            $(printf '${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
 
       - name: Inspect image
         run: |
-          docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ matrix.images.name }}:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}

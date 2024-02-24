@@ -1,6 +1,6 @@
 [
   {
-    "name": "outline",
+    "arch": "amd64",
     "platforms": "linux/amd64",
     "build": {
       "context": "./",
@@ -8,7 +8,7 @@
     }
   },
   {
-    "name": "outline",
+    "arch": "arm64",
     "platforms": "linux/arm64",
     "build": {
       "context": "./",
