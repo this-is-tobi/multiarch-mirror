@@ -132,8 +132,6 @@ jobs:
           provenance: false
           platforms: ${{ matrix.images.platforms }}
           outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          build-args: |
-            MM_PACKAGE=${{ matrix.images.build.args.MM_PACKAGE }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
           cache-from: type=local,src=/tmp/.buildx-cache
@@ -260,8 +258,6 @@ jobs:
           provenance: false
           platforms: ${{ matrix.images.platforms }}
           outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          build-args: |
-            MM_PACKAGE=${{ matrix.images.build.args.MM_PACKAGE }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
           cache-from: type=local,src=/tmp/.buildx-cache
