@@ -8,7 +8,7 @@ Each application receives one or more matrices to list the different architectur
 
 ## Automation
 
-The workflow runs weekly (03:00 am) or can be triggered manually from the Github user interface (each image workflow can be triggered daily if required).
+The workflow runs daily (03:00 am) or can be triggered manually from the Github user interface (each image workflow can be triggered daily if required).
 
 > *__Notes:__ Before each application build, the CI compares the last tag of the official version with the last tag of the mirror image to check whether a new build should be triggered.*
 
