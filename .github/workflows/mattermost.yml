@@ -50,8 +50,8 @@ jobs:
     name: Get Mattermost and mirror infos
     runs-on: ubuntu-latest
     outputs:
-      build-matrix: ${{ steps.infos.outputs.BUILD_MATRIX }}
       tag: ${{ steps.infos.outputs.TAG }}
+      build-matrix: ${{ steps.infos.outputs.BUILD_MATRIX }}
       image-status: ${{ steps.infos.outputs.IMAGE_STATUS }}
     steps:
       - name: Checks-out repository
@@ -67,7 +67,7 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
 
           # Get build matrix
-          BUILD_MATRIX=$(jq -c '.' < ./apps/mattermost/matrix.json | sed s/\${TAG}/${TAG}/g)
+          BUILD_MATRIX=$(jq -c '.' < ./apps/mattermost/matrix.json | sed 's|\${TAG}|${TAG}|g')
           echo "BUILD_MATRIX=$BUILD_MATRIX" >> $GITHUB_OUTPUT
 
           # Get current mirrored version
@@ -76,8 +76,8 @@ jobs:
             --silent \
             --write-out '%{http_code}' \
             --output /dev/null \
-            -H "Authorization: Bearer $(echo -n ${{ secrets.GITHUB_TOKEN }} | base64)" \
-            https://${{ inputs.REGISTRY }}/v2/${{ inputs.NAMESPACE }}/mattermost/manifests/${TAG})
+            -H "Authorization: Bearer $(echo -n '${{ secrets.GITHUB_TOKEN }}' | base64)" \
+            https://${{ inputs.REGISTRY }}/v2/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}/manifests/${TAG})
           echo "IMAGE_STATUS=$IMAGE_STATUS" >> $GITHUB_OUTPUT
 
   build:
@@ -98,7 +98,7 @@ jobs:
       
       - name: Remove docker image sha (arm compatibility)
         run: |
-          sed -r -i '1s/@sha256.*//' ./server/build/Dockerfile
+          sed -r -i '1s|@sha256.*||' ./server/build/Dockerfile
 
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
