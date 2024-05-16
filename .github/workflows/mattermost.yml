@@ -67,7 +67,7 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
 
           # Get build matrix
-          BUILD_MATRIX=$(jq -c '.' < ./apps/mattermost/matrix.json | sed 's|\${TAG}|${TAG}|g')
+          BUILD_MATRIX=$(jq -c '.' < ./apps/mattermost/matrix.json | sed "s|\${TAG}|${TAG}|g")
           echo "BUILD_MATRIX=$BUILD_MATRIX" >> $GITHUB_OUTPUT
 
           # Get current mirrored version
