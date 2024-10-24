@@ -95,6 +95,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: 'mattermost/mattermost'
+          ref: v${{ needs.infos.outputs.tag }}
       
       - name: Remove docker image sha (arm compatibility)
         run: |

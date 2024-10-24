@@ -108,6 +108,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: 'outline/outline'
+          ref: v${{ needs.infos.outputs.tag }}
 
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
@@ -231,6 +232,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: 'outline/outline'
+          ref: v${{ needs.infos.outputs.tag }}
       
       - name: Remove docker image sha (arm compatibility)
         if: ${{ needs.infos.outputs.image-status == '404' }}
