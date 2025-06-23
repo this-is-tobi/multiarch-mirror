@@ -67,6 +67,7 @@ jobs:
           TAG=$(curl \
             --silent \
             https://api.github.com/repos/outline/outline/releases/latest | jq -r '.tag_name' | cut -c 2-)
+          echo "Last Outline release: $TAG"
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
 
           # Get build matrix
@@ -83,6 +84,7 @@ jobs:
             --output /dev/null \
             -H "Authorization: Bearer $(echo -n ${{ secrets.GITHUB_TOKEN }} | base64)" \
             https://${{ inputs.REGISTRY }}/v2/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}/manifests/${TAG})
+          echo "Status code of mirror base image: $IMAGE_STATUS_BASE"
           echo "IMAGE_STATUS_BASE=$IMAGE_STATUS_BASE" >> $GITHUB_OUTPUT
           IMAGE_STATUS=$(curl \
             --head \
@@ -91,6 +93,7 @@ jobs:
             --output /dev/null \
             -H "Authorization: Bearer $(echo -n ${{ secrets.GITHUB_TOKEN }} | base64)" \
             https://${{ inputs.REGISTRY }}/v2/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}/manifests/${TAG})
+          echo "Status code of mirror image: $IMAGE_STATUS"
           echo "IMAGE_STATUS=$IMAGE_STATUS" >> $GITHUB_OUTPUT
 
   build-base:
@@ -224,7 +227,7 @@ jobs:
       - merge-base
     strategy:
       matrix:
-        runners: ${{ inputs.MULTI_ARCH && !inputs.USE_QEMU && fromJson('["ubuntu-latest", "ARM64"]') || fromJson('["ubuntu-latest"]') }}
+        runners: ${{ inputs.MULTI_ARCH && !inputs.USE_QEMU && fromJson('["ubuntu-24.04", "ubuntu-24.04-arm"]') || fromJson('["ubuntu-24.04"]') }}
         images: ${{ fromJSON(needs.infos.outputs.build-matrix) }}
     steps:
       - name: Checks-out repository
