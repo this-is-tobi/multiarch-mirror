@@ -66,6 +66,8 @@ jobs:
           # Get current version
           TAG=$(curl \
             --silent \
+            --header "Accept: application/vnd.github.v3+json" \
+            --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/outline/outline/releases/latest | jq -r '.tag_name' | cut -c 2-)
           echo "Last Outline release: $TAG"
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
