@@ -1,0 +1,24 @@
+[
+  {
+    "arch": "amd64",
+    "platforms": "linux/amd64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-amd64-v${TAG}"
+      }
+    }
+  },
+  {
+    "arch": "arm64",
+    "platforms": "linux/arm64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-arm64-v${TAG}"
+      }
+    }
+  }
+]

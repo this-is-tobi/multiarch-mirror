@@ -56,6 +56,17 @@ docker pull ghcr.io/this-is-tobi/mirror/mattermost:latest
 
 **Architecture:** Single binary application with multi-arch support
 
+### Mostlymatter
+Fork of Mattermost by Framasoft without user limitations (Slack alternative without restrictions).
+
+**Pull command:**
+```sh
+docker pull ghcr.io/this-is-tobi/mirror/mostlymatter:latest
+```
+
+**Architecture:** Single binary application with multi-arch support (same as Mattermost)  
+**Source:** Framagit - [framasoft/framateam/mostlymatter](https://framagit.org/framasoft/framateam/mostlymatter)
+
 ### Outline
 Modern wiki and knowledge base (Notion alternative).
 
@@ -80,10 +91,12 @@ multi-arch-mirror/
 ├── .github/
 │   └── workflows/      # GitHub Actions workflows
 │       ├── build.yml   # Daily orchestrator
+│       ├── mostlymatter.yml
 │       ├── mattermost.yml
 │       └── outline.yml
 ├── apps/
 │   ├── mattermost/     # Mattermost build configuration
+│   ├── mostlymatter/   # Mostlymatter build configuration
 │   └── outline/        # Outline build configuration
 ├── docs/               # Documentation (you are here!)
 └── README.md           # Project overview

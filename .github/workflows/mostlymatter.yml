@@ -1,0 +1,222 @@
+name: Mostlymatter
+
+on:
+  workflow_call:
+    inputs:
+      REGISTRY:
+        required: true
+        type: string
+      NAMESPACE:
+        required: true
+        type: string
+      MULTI_ARCH:
+        required: true
+        type: boolean
+      USE_QEMU:
+        required: true
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      REGISTRY:
+        description: Target registry to push images
+        required: true
+        type: string
+        default: ghcr.io
+      NAMESPACE:
+        description: Target namespace to the given registry
+        required: true
+        type: string
+        default: this-is-tobi/mirror
+      MULTI_ARCH:
+        description: Build for both amd64 and arm64
+        required: true
+        type: boolean
+        default: true
+      USE_QEMU:
+        description: Use QEMU emulator for arm64
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: mostlymatter
+
+jobs:
+  infos:
+    name: Get Mostlymatter and mirror infos
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.infos.outputs.TAG }}
+      full-tag: ${{ steps.infos.outputs.FULL_TAG }}
+      build-matrix: ${{ steps.infos.outputs.BUILD_MATRIX }}
+      image-status: ${{ steps.infos.outputs.IMAGE_STATUS }}
+    steps:
+      - name: Checks-out repository
+        uses: actions/checkout@v4
+
+      - name: Generate matrix for build and get infos
+        id: infos
+        run: |
+          # Get latest stable version from Framagit (using tags)
+          # Filter only stable tags (vX.Y.Z-limitless) and sort by semantic version
+          FULL_TAG=$(curl \
+            --silent \
+            https://framagit.org/api/v4/projects/framasoft%2Fframateam%2Fmostlymatter/repository/tags | jq -r '
+              [.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-limitless$"))] 
+              | map(.name) 
+              | sort_by(. | ltrimstr("v") | rtrimstr("-limitless") | split(".") | map(tonumber)) 
+              | reverse 
+              | .[0]')
+          echo "Latest Mostlymatter stable tag: $FULL_TAG"
+          echo "FULL_TAG=$FULL_TAG" >> $GITHUB_OUTPUT
+          
+          # Extract version for packages (remove only '-limitless' suffix)
+          # Format: v11.0.4-limitless -> v11.0.4
+          TAG=$(echo "$FULL_TAG" | sed 's/-limitless$//')
+          echo "Version for packages: $TAG"
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+
+          # Get build matrix
+          BUILD_MATRIX=$(jq -c '.' < ./apps/mostlymatter/matrix.json | sed "s|\${TAG}|${TAG}|g")
+          echo "BUILD_MATRIX=$BUILD_MATRIX" >> $GITHUB_OUTPUT
+
+          # Get current mirrored version
+          IMAGE_STATUS=$(curl \
+            --head \
+            --silent \
+            --write-out '%{http_code}' \
+            --output /dev/null \
+            -H "Authorization: Bearer $(echo -n '${{ secrets.GITHUB_TOKEN }}' | base64)" \
+            https://${{ inputs.REGISTRY }}/v2/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}/manifests/${TAG})
+          echo "Status code of mirror image: $IMAGE_STATUS"
+          echo "IMAGE_STATUS=$IMAGE_STATUS" >> $GITHUB_OUTPUT
+
+  build:
+    name: Build application
+    runs-on: ${{ matrix.runners }}
+    if: ${{ needs.infos.outputs.image-status == '404' }}
+    needs:
+      - infos
+    strategy:
+      matrix:
+        runners: ${{ inputs.MULTI_ARCH && !inputs.USE_QEMU && fromJson('["ubuntu-24.04", "ubuntu-24.04-arm"]') || fromJson('["ubuntu-24.04"]') }}
+        images: ${{ fromJSON(needs.infos.outputs.build-matrix) }}
+    steps:
+      - name: Checks-out repository from Framagit
+        run: |
+          git clone --depth 1 --branch ${{ needs.infos.outputs.full-tag }} https://framagit.org/framasoft/framateam/mostlymatter.git .
+          ls -la
+      
+      - name: Remove docker image sha (arm compatibility)
+        run: |
+          sed -i -E 's/(FROM [^@]+)@sha256:[a-f0-9]{64}(.*)/\1\2/' ./server/build/Dockerfile
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+  
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: buildx-${{ matrix.images.platforms }}-${{ env.IMAGE_NAME }}-${{ needs.infos.outputs.tag }}
+          restore-keys: |
+            buildx-${{ matrix.images.platforms }}-${{ env.IMAGE_NAME }}-
+
+      - name: Set up QEMU (for multi platform build)
+        uses: docker/setup-qemu-action@v3
+        if: ${{ inputs.USE_QEMU }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: true
+
+      - name: Build and push docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.images.build.context }}
+          file: ${{ matrix.images.build.dockerfile }}
+          provenance: false
+          platforms: ${{ matrix.images.platforms }}
+          outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            MM_PACKAGE=${{ matrix.images.build.args.MM_PACKAGE }}
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+          
+      # Necessary to avoid forever growing cache
+      # https://github.com/docker/build-push-action/issues/252
+      # https://github.com/moby/buildkit/issues/1896
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests/${{ env.IMAGE_NAME }}
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${{ env.IMAGE_NAME }}/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.IMAGE_NAME }}-${{ matrix.images.arch }}
+          path: /tmp/digests/${{ env.IMAGE_NAME }}/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge digest
+    runs-on: ubuntu-latest
+    if: ${{ needs.infos.outputs.image-status == '404' }}
+    needs:
+      - infos
+      - build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-${{ env.IMAGE_NAME }}-*
+          path: /tmp/digests/${{ env.IMAGE_NAME }}
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ needs.infos.outputs.tag }},enable=${{ needs.infos.outputs.tag != '' }}
+            type=raw,value=latest
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: true
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests/${{ env.IMAGE_NAME }}
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}

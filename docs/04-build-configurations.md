@@ -480,12 +480,26 @@ Access in workflow:
   {
     "component": "mattermost",
     "arch": "amd64",
-    "platforms": "linux/amd64"
+    "platforms": "linux/amd64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-amd64.tar.gz?src=docker"
+      }
+    }
   },
   {
     "component": "mattermost",
     "arch": "arm64",
-    "platforms": "linux/arm64"
+    "platforms": "linux/arm64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-arm64.tar.gz?src=docker"
+      }
+    }
   }
 ]
 ```
@@ -493,10 +507,50 @@ Access in workflow:
 **Characteristics:**
 - Single component
 - 2 architectures
+- Uses pre-built binaries from official registry
 - Simple pattern
 - 2 total builds
 
-### Example 2: Outline
+### Example 2: Mostlymatter
+
+**File:** `apps/mostlymatter/matrix.json`
+
+```json
+[
+  {
+    "arch": "amd64",
+    "platforms": "linux/amd64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-amd64-v${TAG}"
+      }
+    }
+  },
+  {
+    "arch": "arm64",
+    "platforms": "linux/arm64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-arm64-v${TAG}"
+      }
+    }
+  }
+]
+```
+
+**Characteristics:**
+- Single component (Mattermost fork)
+- 2 architectures
+- Uses pre-built binaries from Framasoft registry
+- Same structure as Mattermost
+- Source from Framagit instead of GitHub
+- 2 total builds
+
+### Example 3: Outline
 
 **File:** `apps/outline/matrix.json`
 

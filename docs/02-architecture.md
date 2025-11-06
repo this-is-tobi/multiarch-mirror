@@ -17,18 +17,18 @@ The build system consists of:
 ┌─────────────────────────────────────────────────────────┐
 │  build.yml (Daily Scheduler - 01:00 AM UTC)             │
 │  - Triggers: schedule / manual                          │
-│  - Calls: mattermost.yml, outline.yml                   │
+│  - Calls: mattermost.yml, mostlymatter.yml, outline.yml │
 └──────────────────┬──────────────────────────────────────┘
                    │
-       ┌───────────┴───────────┐
-       │                       │
-       ▼                       ▼
-  ┌─────────┐             ┌─────────┐
-  │ Matter- │             │ Outline │
-  │ most    │             │ Workflow│
-  └────┬────┘             └────┬────┘
-       │           │           │
-       ▼           ▼           ▼
+       ┌───────────┴───────────┬─────────────┐
+       │                       │             │
+       ▼                       ▼             ▼
+  ┌─────────┐             ┌─────────┐  ┌─────────┐
+  │ Matter- │             │ Mostly- │  │ Outline │
+  │ most    │             │ matter  │  │ Workflow│
+  └────┬────┘             └────┬────┘  └────┬────┘
+       │           │           │             │
+       ▼           ▼           ▼             ▼
   ┌─────────────────────────────────┐
   │  Job 1: infos                   │
   │  - Read matrix.json             │
@@ -79,6 +79,9 @@ on:
 jobs:
   mattermost:
     uses: ./.github/workflows/mattermost.yml
+  
+  mostlymatter:
+    uses: ./.github/workflows/mostlymatter.yml
     
   outline:
     uses: ./.github/workflows/outline.yml
@@ -515,11 +518,56 @@ jobs:
 
 **Typical build times:**
 - Mattermost: ~15-20 minutes (2 arch builds)
+- Mostlymatter: ~15-20 minutes (2 arch builds, same as Mattermost)
 - Outline: ~10-15 minutes (2 arch builds)
 
 **Cache benefits:**
 - First build: 100% time
 - Subsequent builds with cache: 30-50% time reduction
+
+## Application-Specific Implementations
+
+### Mattermost & Mostlymatter
+
+**Source:**
+- Mattermost: GitHub - `github.com/mattermost/mattermost`
+- Mostlymatter: Framagit - `framagit.org/framasoft/framateam/mostlymatter`
+
+**Build Approach:**
+- Uses pre-built binaries from respective package registries
+- Same Dockerfile structure (`server/build/Dockerfile`)
+- Single binary Go application
+
+**Key Differences:**
+
+| Aspect            | Mattermost                | Mostlymatter             |
+| ----------------- | ------------------------- | ------------------------ |
+| Source            | GitHub                    | Framagit                 |
+| API Endpoint      | GitHub Releases API       | Framagit Tags API        |
+| Version Detection | Latest release            | Filtered & sorted tags   |
+| Tag Format        | `vX.Y.Z`                  | `vX.Y.Z-limitless`       |
+| Package URL       | `releases.mattermost.com` | `packages.framasoft.org` |
+| Clone Method      | `actions/checkout@v4`     | Direct `git clone`       |
+
+**Mostlymatter Version Detection:**
+```bash
+# Framagit returns tags unsorted and with mixed formats
+# Filter: Only stable releases (vX.Y.Z-limitless)
+# Sort: Semantic version comparison ([11,0,4] > [10,12,2])
+curl framagit.org/api/v4/.../tags | jq -r '
+  [.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-limitless$"))] 
+  | sort_by(. | ltrimstr("v") | rtrimstr("-limitless") | split(".") | map(tonumber)) 
+  | reverse | .[0]'
+```
+
+### Outline
+
+**Source:** GitHub - `github.com/outline/outline`
+
+**Build Approach:**
+- Node.js application with multi-arch base images
+- Uses official Dockerfile from repository
+- No special compilation required
 
 ## Further Reading
 
