@@ -23,7 +23,7 @@ This repository bridges that gap by creating multi-architecture images that work
 ## Key Features
 
 ### Automated Daily Builds
-- Scheduled workflows run daily at 01:00 AM UTC
+- Scheduled workflows run every 6 hours (00:00 / 06:00 / 12:00 / 18:00 UTC)
 - Automatically detect new upstream versions
 - Build and push only when new versions are available
 - Can be triggered manually via GitHub Actions UI
@@ -90,7 +90,7 @@ docker pull ghcr.io/this-is-tobi/mirror/outline:latest
 multi-arch-mirror/
 ├── .github/
 │   └── workflows/      # GitHub Actions workflows
-│       ├── build.yml   # Daily orchestrator
+│       ├── build.yml   # Orchestrator (runs every 6 hours)
 │       ├── mostlymatter.yml
 │       ├── mattermost.yml
 │       └── outline.yml
@@ -134,7 +134,7 @@ docker manifest inspect ghcr.io/this-is-tobi/mirror/mattermost:latest
 - **Official version tags**: Mirror exact upstream versions (e.g., `v9.11.0`, `v2.14.0`)
 - **Latest tag**: Always points to most recent version
 - **No pre-releases**: Only stable releases are mirrored
-- **Automatic updates**: New versions detected and built daily
+- **Automatic updates**: New versions detected and built every 6 hours
 
 ## Registry Information
 

@@ -5,7 +5,7 @@ This document explains how the multi-arch mirror build system works, including G
 ## Overview
 
 The build system consists of:
-- **Orchestrator workflow** - Daily scheduler that triggers app-specific workflows
+- **Orchestrator workflow** - Scheduler that triggers app-specific workflows every 6 hours
 - **App-specific workflows** - Individual build pipelines for each application
 - **Matrix strategy** - Parallel builds for different components and architectures
 - **Docker Buildx** - Multi-platform image builder
@@ -13,48 +13,164 @@ The build system consists of:
 
 ## Build Pipeline Architecture
 
+### High-Level Overview
+
 ```
-┌─────────────────────────────────────────────────────────┐
-│  build.yml (Daily Scheduler - 01:00 AM UTC)             │
-│  - Triggers: schedule / manual                          │
-│  - Calls: mattermost.yml, mostlymatter.yml, outline.yml │
-└──────────────────┬──────────────────────────────────────┘
-                   │
-       ┌───────────┴───────────┬─────────────┐
-       │                       │             │
-       ▼                       ▼             ▼
-  ┌─────────┐             ┌─────────┐  ┌─────────┐
-  │ Matter- │             │ Mostly- │  │ Outline │
-  │ most    │             │ matter  │  │ Workflow│
-  └────┬────┘             └────┬────┘  └────┬────┘
-       │           │           │             │
-       ▼           ▼           ▼             ▼
-  ┌─────────────────────────────────┐
-  │  Job 1: infos                   │
-  │  - Read matrix.json             │
-  │  - Check GitHub releases        │
-  │  - Compare versions             │
-  │  - Check GHCR for existing tags │
-  └────────────┬────────────────────┘
-               │
-               ▼ (if new version)
-  ┌─────────────────────────────────┐
-  │  Job 2: build (Matrix Strategy) │
-  │  - Clone source repo            │
-  │  - Cross-compile binaries       │
-  │  - Build Docker image           │
-  │  - Push by digest to GHCR       │
-  │  - Upload digest artifact       │
-  └────────────┬────────────────────┘
-               │
-               ▼
-  ┌─────────────────────────────────┐
-  │  Job 3: merge                   │
-  │  - Download all digests         │
-  │  - Create multi-arch manifest   │
-  │  - Tag with version + latest    │
-  │  - Inspect final manifest       │
-  └─────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  build.yml (Orchestrator - Every 6 hours at 00:00 / 06:00 / 12:00 / 18:00 UTC)  │
+│  ├─ Triggers: schedule (cron) / manual (workflow_dispatch)                      │
+│  └─ Calls: mattermost.yml, mostlymatter.yml, outline.yml                        │
+└───────────────────────────────┬─────────────────────────────────────────────────┘
+                                │
+                ┌───────────────┼───────────────┐
+                │               │               │
+                ▼               ▼               ▼
+    ┌───────────────┐  ┌────────────────┐  ┌───────────────┐
+    │  Mattermost   │  │  Mostlymatter  │  │    Outline    │
+    │   Workflow    │  │   Workflow     │  │   Workflow    │
+    └───────┬───────┘  └────────┬───────┘  └───────┬───────┘
+            │                   │                  │
+            └───────────────────┴──────────────────┘
+                                │
+                                ▼
+                  ┌──────────────────────────┐
+                  │    Common 3-Job Flow     │
+                  │  (infos → build → merge) │
+                  └──────────────────────────┘
+```
+
+### Detailed Job Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  Job 1: infos                                                                   │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │  Purpose: Version detection & build decision                              │  │
+│  │  ─────────────────────────────────────────────────────────────────────────│  │
+│  │  1. Checkout repository                                                   │  │
+│  │  2. Read build matrix from matrix.json                                    │  │
+│  │  3. Get latest version:                                                   │  │
+│  │     • Mattermost:   GitHub Releases API                                   │  │
+│  │     • Mostlymatter: Framagit Tags API (filtered & sorted)                 │  │
+│  │     • Outline:      GitHub Releases API                                   │  │
+│  │  4. Check if image exists in GHCR                                         │  │
+│  │  5. Output: tag, build-matrix, image-status (200/404)                     │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────┬───────────────────────────────────────────┘
+                                      │
+                    ┌─────────────────┴─────────────────┐
+                    │   if image-status == '404'        │
+                    │   (image doesn't exist yet)       │
+                    └─────────────────┬─────────────────┘
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│  Job 2: build (Matrix Strategy - Parallel Execution)                             │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │  Purpose: Build multi-arch images in parallel                              │  │
+│  │  ───────────────────────────────────────────────────────────────────────── │  │
+│  │  Matrix: For each (arch × component) combination                           │  │
+│  │  Example: [amd64, arm64] × [app] = 2 parallel jobs                         │  │
+│  │                                                                            │  │
+│  │  Steps per matrix job:                                                     │  │
+│  │  ┌──────────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ 1. Clone source repository at detected version tag                   │  │  │
+│  │  │                                                                      │  │  │
+│  │  │ 2. Modify Dockerfile (if needed):                                    │  │  │
+│  │  │    • Remove SHA pinning for ARM compatibility                        │  │  │
+│  │  │    • Mostlymatter: Replace tarball extraction with binary download   │  │  │
+│  │  │      - Old: curl -L $MM_PACKAGE | tar -xvz                           │  │  │
+│  │  │      - New: mkdir /mattermost/bin && curl -L $MM_PACKAGE -o ... && \ │  │  │
+│  │  │             chmod +x /mattermost/bin/mattermost                      │  │  │
+│  │  │                                                                      │  │  │
+│  │  │ 3. Setup Docker Buildx + QEMU (optional)                             │  │  │
+│  │  │                                                                      │  │  │
+│  │  │ 4. Login to GHCR                                                     │  │  │
+│  │  │                                                                      │  │  │
+│  │  │ 5. Build & Push Docker image:                                        │  │  │
+│  │  │    • Platform: linux/amd64 OR linux/arm64                            │  │  │
+│  │  │    • Push by digest (no tags yet)                                    │  │  │
+│  │  │    • Output: sha256:abc123... (unique digest)                        │  │  │
+│  │  │                                                                      │  │  │
+│  │  │ 6. Export digest to file:                                            │  │  │
+│  │  │    /tmp/digests/app/abc123...                                        │  │  │
+│  │  │                                                                      │  │  │
+│  │  │ 7. Upload digest as artifact:                                        │  │  │
+│  │  │    digests-app-amd64, digests-app-arm64                              │  │  │
+│  │  └──────────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                            │  │
+│  │  Result: 2 separate images pushed to GHCR (one per architecture)           │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────┬────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  Job 3: merge                                                                   │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │  Purpose: Create multi-arch manifest from digests                         │  │
+│  │  ─────────────────────────────────────────────────────────────────────────│  │
+│  │  1. Download all digest artifacts:                                        │  │
+│  │     • digests-app-amd64 → sha256:abc123...                                │  │
+│  │     • digests-app-arm64 → sha256:def456...                                │  │
+│  │                                                                           │  │
+│  │  2. Generate tags using docker/metadata-action:                           │  │
+│  │     • {version} (e.g., 11.0.4, 9.11.4)                                    │  │
+│  │     • latest                                                              │  │
+│  │                                                                           │  │
+│  │  3. Create multi-arch manifest:                                           │  │
+│  │     docker buildx imagetools create \                                     │  │
+│  │       -t ghcr.io/namespace/app:{version} \                                │  │
+│  │       -t ghcr.io/namespace/app:latest \                                   │  │
+│  │       ghcr.io/namespace/app@sha256:abc123... \  (amd64)                   │  │
+│  │       ghcr.io/namespace/app@sha256:def456...    (arm64)                   │  │
+│  │                                                                           │  │
+│  │  4. Inspect manifest to verify multi-arch support                         │  │
+│  │                                                                           │  │
+│  │  Result: Tagged multi-arch image available for both platforms             │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Final Output:
+  ghcr.io/namespace/app:{version} → Multi-arch manifest
+  ├─ linux/amd64 → sha256:abc123...
+  └─ linux/arm64 → sha256:def456...
+  
+  ghcr.io/namespace/app:latest → Same manifest
+```
+
+### Application-Specific Differences
+
+#### Mattermost
+```
+Version Source: GitHub Releases API
+Package Format: Pre-built tarball (.tar.gz)
+Dockerfile:     Official from mattermost/mattermost
+Modifications:  Remove SHA pinning only
+Build Args:     MM_PACKAGE=https://releases.mattermost.com/.../mattermost-{version}-linux-{arch}.tar.gz
+```
+
+#### Mostlymatter
+```
+Version Source: Framagit Tags API (filtered with regex ^v[0-9]+\.[0-9]+\.[0-9]+-limitless$)
+                Sorted semantically: v11.0.4 > v10.12.2
+Package Format: Pre-built binary (direct executable)
+Dockerfile:     Official from mostlymatter repository
+Modifications:  1. Remove SHA pinning
+                2. Replace tarball extraction with:
+                   - Create directories (/mattermost/bin, etc.)
+                   - Download binary directly
+                   - Set executable permissions
+Build Args:     MM_PACKAGE=https://packages.framasoft.org/.../mostlymatter-{arch}-v{version}
+Key Challenge:  Framasoft packages are binaries, not tarballs like Mattermost
+Solution:       Modify Dockerfile to handle binary format while keeping official Dockerfile base
+```
+
+#### Outline
+```
+Version Source: GitHub Releases API
+Package Format: Node.js application
+Dockerfile:     Official from outline/outline
+Modifications:  Remove SHA pinning only
+Build Args:     None (uses standard Node.js base images)
 ```
 
 ## Workflow Components
@@ -66,14 +182,14 @@ The build system consists of:
 **Location:** `.github/workflows/build.yml`
 
 **Triggers:**
-- **Schedule:** Daily at 01:00 AM UTC (`cron: '0 1 * * *'`)
+- **Schedule:** Every 6 hours at 00:00 / 06:00 / 12:00 / 18:00 UTC (`cron: '0 */6 * * *'`)
 - **Manual:** Via GitHub Actions UI (`workflow_dispatch`)
 
 **Structure:**
 ```yaml
 on:
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:

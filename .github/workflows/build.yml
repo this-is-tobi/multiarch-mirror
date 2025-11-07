@@ -3,7 +3,7 @@ name: Global build
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * *'
+  - cron: '0 */6 * * *'
 
 env:
   REGISTRY: "ghcr.io"
@@ -26,7 +26,7 @@ jobs:
   mattermost:
     uses: ./.github/workflows/mattermost.yml
     needs:
-      - expose-vars
+    - expose-vars
     permissions:
       contents: read
       packages: write
@@ -39,7 +39,7 @@ jobs:
   mostlymatter:
     uses: ./.github/workflows/mostlymatter.yml
     needs:
-      - expose-vars
+    - expose-vars
     permissions:
       contents: read
       packages: write
@@ -52,7 +52,7 @@ jobs:
   outline:
     uses: ./.github/workflows/outline.yml
     needs:
-      - expose-vars
+    - expose-vars
     permissions:
       contents: read
       packages: write

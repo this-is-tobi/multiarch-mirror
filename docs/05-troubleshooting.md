@@ -448,7 +448,7 @@ Error: matrix.images.component is undefined
    ```yaml
    on:
      schedule:
-       - cron: '0 1 * * *'  # ✅ Correct
+       - cron: '0 */6 * * *'  # ✅ Correct (every 6 hours)
        # Not: cron: '0 1 * * * *'  # ❌ Wrong (6 fields)
    ```
 

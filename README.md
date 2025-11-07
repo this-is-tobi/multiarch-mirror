@@ -36,7 +36,7 @@ See [Adding New Applications](./docs/03-adding-applications.md) for the complete
 
 ## Automation
 
-The workflow runs daily (01:00 am) or can be triggered manually from the Github user interface.
+The workflow runs every 6 hours (00:00 / 06:00 / 12:00 / 18:00 UTC) or can be triggered manually from the Github user interface.
 
 > *__Notes:__ Before each application build, the CI compares the last tag of the official version with the last tag of the mirror image to check whether a new build should be triggered.*
 
