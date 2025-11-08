@@ -6,7 +6,8 @@
       "context": "./server/build",
       "dockerfile": "./server/build/Dockerfile",
       "args": {
-        "MM_PACKAGE": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-amd64-v${TAG}"
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-amd64.tar.gz",
+        "MOSTLYMATTER_BINARY": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-amd64-v${TAG}"
       }
     }
   },
@@ -17,7 +18,8 @@
       "context": "./server/build",
       "dockerfile": "./server/build/Dockerfile",
       "args": {
-        "MM_PACKAGE": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-arm64-v${TAG}"
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-arm64.tar.gz",
+        "MOSTLYMATTER_BINARY": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-arm64-v${TAG}"
       }
     }
   }
