@@ -152,16 +152,19 @@ Build Args:     MM_PACKAGE=https://releases.mattermost.com/.../mattermost-{versi
 ```
 Version Source: Framagit Tags API (filtered with regex ^v[0-9]+\.[0-9]+\.[0-9]+-limitless$)
                 Sorted semantically: v11.0.4 > v10.12.2
-Package Format: Pre-built binary (direct executable)
+Package Format: Hybrid - Mattermost tarball + Mostlymatter binary
 Dockerfile:     Official from mostlymatter repository
 Modifications:  1. Remove SHA pinning
-                2. Replace tarball extraction with:
-                   - Create directories (/mattermost/bin, etc.)
-                   - Download binary directly
+                2. Add MOSTLYMATTER_BINARY build arg
+                3. Modify download to replace binary:
+                   - Extract Mattermost tarball (provides all supporting files)
+                   - Remove Mattermost binary
+                   - Download Mostlymatter binary
                    - Set executable permissions
-Build Args:     MM_PACKAGE=https://packages.framasoft.org/.../mostlymatter-{arch}-v{version}
-Key Challenge:  Framasoft packages are binaries, not tarballs like Mattermost
-Solution:       Modify Dockerfile to handle binary format while keeping official Dockerfile base
+Build Args:     MM_PACKAGE=https://releases.mattermost.com/.../mattermost-{version}-linux-{arch}.tar.gz
+                MOSTLYMATTER_BINARY=https://packages.framasoft.org/.../mostlymatter-{arch}-v{version}
+Key Challenge:  Framasoft packages are binaries only, missing supporting files (i18n, templates, config)
+Solution:       Use Mattermost's complete tarball, replace only the binary with Mostlymatter's version
 ```
 
 #### Outline

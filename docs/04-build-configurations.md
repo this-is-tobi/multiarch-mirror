@@ -524,7 +524,8 @@ Access in workflow:
       "context": "./server/build",
       "dockerfile": "./server/build/Dockerfile",
       "args": {
-        "MM_PACKAGE": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-amd64-v${TAG}"
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-amd64.tar.gz",
+        "MOSTLYMATTER_BINARY": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-amd64-v${TAG}"
       }
     }
   },
@@ -535,7 +536,8 @@ Access in workflow:
       "context": "./server/build",
       "dockerfile": "./server/build/Dockerfile",
       "args": {
-        "MM_PACKAGE": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-arm64-v${TAG}"
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-arm64.tar.gz",
+        "MOSTLYMATTER_BINARY": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-arm64-v${TAG}"
       }
     }
   }
@@ -545,9 +547,9 @@ Access in workflow:
 **Characteristics:**
 - Single component (Mattermost fork)
 - 2 architectures
-- Uses pre-built binaries from Framasoft registry
-- Same structure as Mattermost
-- Source from Framagit instead of GitHub
+- Hybrid approach: Mattermost tarball + Mostlymatter binary
+- Two build args per architecture
+- Source from Framagit (version detection) + Mattermost releases (tarball) + Framasoft packages (binary)
 - 2 total builds
 
 ### Example 3: Outline

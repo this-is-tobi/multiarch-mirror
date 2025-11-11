@@ -645,5 +645,81 @@ Before submitting:
 ## Examples
 
 Refer to existing implementations:
-- **Simple:** `apps/mattermost/` - Single Go binary
+- **Simple:** `apps/mattermost/` - Single Go binary, GitHub releases
 - **Node.js:** `apps/outline/` - Node.js application
+- **Advanced:** `apps/mostlymatter/` - Hybrid approach (Mattermost tarball + custom binary)
+
+### Mostlymatter: Advanced Hybrid Build
+
+Mostlymatter demonstrates a unique approach where we combine packages from different sources.
+
+**Challenge:**
+- Mostlymatter (Mattermost fork by Framasoft) distributes only pre-compiled binaries
+- Mattermost distributes complete tarballs with supporting files (i18n, templates, config, fonts)
+- Need all supporting files + the Mostlymatter binary
+
+**Solution:** Hybrid approach
+1. Download Mattermost's complete tarball (has all supporting files)
+2. Replace only the binary with Mostlymatter's version
+3. Keep all paths as `/mattermost` (matches original Dockerfile)
+
+**Key Implementation Details:**
+
+```yaml
+# Version detection from Framagit API
+FULL_TAG=$(curl -s https://framagit.org/api/v4/projects/framasoft%2Fframateam%2Fmostlymatter/repository/tags | jq -r '
+  [.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-limitless$"))] 
+  | map(.name) 
+  | sort_by(. | ltrimstr("v") | rtrimstr("-limitless") | split(".") | map(tonumber)) 
+  | reverse 
+  | .[0]')
+
+# Extract clean version (v11.0.4-limitless → 11.0.4)
+TAG=$(echo "$FULL_TAG" | sed 's/^v//' | sed 's/-limitless$//')
+
+# Dockerfile modifications (minimal approach)
+sed -i -E 's/(FROM [^@]+)@sha256:[a-f0-9]{64}(.*)/\1\2/' ./server/build/Dockerfile
+sed -i '/^ARG MM_PACKAGE=/a ARG MOSTLYMATTER_BINARY' ./server/build/Dockerfile
+sed -i 's#curl -L \$MM_PACKAGE | tar -xvz#curl -L \$MM_PACKAGE | tar -xvz \&\& rm /mattermost/bin/mattermost \&\& curl -L \$MOSTLYMATTER_BINARY -o /mattermost/bin/mattermost \&\& chmod +x /mattermost/bin/mattermost#' ./server/build/Dockerfile
+```
+
+**Matrix Configuration:**
+
+```json
+[
+  {
+    "arch": "amd64",
+    "platforms": "linux/amd64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-amd64.tar.gz",
+        "MOSTLYMATTER_BINARY": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-amd64-v${TAG}"
+      }
+    }
+  },
+  {
+    "arch": "arm64",
+    "platforms": "linux/arm64",
+    "build": {
+      "context": "./server/build",
+      "dockerfile": "./server/build/Dockerfile",
+      "args": {
+        "MM_PACKAGE": "https://releases.mattermost.com/${TAG}/mattermost-${TAG}-linux-arm64.tar.gz",
+        "MOSTLYMATTER_BINARY": "https://packages.framasoft.org/projects/mostlymatter/mostlymatter-arm64-v${TAG}"
+      }
+    }
+  }
+]
+```
+
+**Benefits:**
+- ✅ Minimal Dockerfile modifications (only 3 sed commands)
+- ✅ All supporting files guaranteed present and version-matched
+- ✅ No directory renaming complexity
+- ✅ Uses official Dockerfile structure from Mostlymatter repository
+- ✅ Simple and maintainable
+
+**Source:** Full implementation in `.github/workflows/mostlymatter.yml`
+
