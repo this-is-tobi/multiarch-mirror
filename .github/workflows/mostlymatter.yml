@@ -116,37 +116,22 @@ jobs:
           # Remove the sha256 from the FROM instruction to improve compatibility with arm builds
           sed -i -E 's/(FROM [^@]+)@sha256:[a-f0-9]{64}(.*)/\1\2/' ./server/build/Dockerfile
 
-          echo "Replacements made in Dockerfile"
-
-      - name: Replace mattermost with mostlymatter
-        run: |
-          # Replace all occurrences of 'mattermost' with 'mostlymatter'
-          # This ensures consistent naming throughout (paths, users, groups, binary)
-          sed -i 's/mattermost/mostlymatter/g' ./server/build/Dockerfile
-          sed -i 's/mattermost/mostlymatter/g' ./server/build/entrypoint.sh
-          sed -i 's/mattermost/mostlymatter/g' ./server/build/passwd
-
-          echo "Global replacements made in Dockerfile, entrypoint.sh, and passwd"
-
       - name: Modify Dockerfile to use Mattermost tarball and replace binary
         run: |
           # Add MOSTLYMATTER_BINARY build arg
           sed -i '/^ARG MM_PACKAGE=/a ARG MOSTLYMATTER_BINARY' ./server/build/Dockerfile
           
           # Modify the download command to:
-          # 1. Extract Mattermost tarball (gets all supporting files)
-          # 2. Replace the binary with Mostlymatter binary
-          sed -i 's#curl -L \$MM_PACKAGE | tar -xvz#curl -L \$MM_PACKAGE | tar -xvz \&\& curl -L \$MOSTLYMATTER_BINARY -o /mostlymatter/bin/mostlymatter \&\& chmod +x /mostlymatter/bin/mostlymatter#' ./server/build/Dockerfile
+          # 1. Extract Mattermost tarball (creates /mattermost with all supporting files)
+          # 2. Remove the Mattermost binary
+          # 3. Download Mostlymatter binary to replace it
+          # 4. Make it executable
+          sed -i 's#curl -L \$MM_PACKAGE | tar -xvz#curl -L \$MM_PACKAGE | tar -xvz \&\& rm /mattermost/bin/mattermost \&\& curl -L \$MOSTLYMATTER_BINARY -o /mattermost/bin/mattermost \&\& chmod +x /mattermost/bin/mattermost#' ./server/build/Dockerfile
 
-          echo "Modified Dockerfile to use Mattermost tarball + Mostlymatter binary"
-
-      - name: Show files updated
+      - name: Display modified Dockerfile
         run: |
           echo "Modified Dockerfile:"
           cat ./server/build/Dockerfile
-          echo ""
-          echo "Modified entrypoint.sh:"
-          cat ./server/build/entrypoint.sh
 
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
