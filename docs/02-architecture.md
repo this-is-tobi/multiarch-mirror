@@ -1,45 +1,99 @@
 # Architecture & Workflows
 
-This document explains how the multi-arch mirror build system works, including GitHub Actions workflows, Docker Buildx integration, and the automated build pipeline.
+This document explains how the multi-arch mirror build system works, including GitHub Actions workflows, Docker Buildx integration, and the automated multi-version build pipeline.
+
+> **Note:** This document describes the current **multi-version build system** (default). For legacy single-version mode (deprecated), see Legacy Mode dedicated documentation.
 
 ## Overview
 
 The build system consists of:
 - **Orchestrator workflow** - Scheduler that triggers app-specific workflows every 6 hours
-- **App-specific workflows** - Individual build pipelines for each application
-- **Matrix strategy** - Parallel builds for different components and architectures
+- **Multi-version workflows** - Build last N versions of each application (default: 10)
+- **Flattened matrix strategy** - Parallel builds for versions × architectures
 - **Docker Buildx** - Multi-platform image builder
 - **Push-by-digest strategy** - Efficient multi-arch manifest creation
+- **Semantic versioning** - Smart "latest" tag determination
 
 ## Build Pipeline Architecture
 
 ### High-Level Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  build.yml (Orchestrator - Every 6 hours at 00:00 / 06:00 / 12:00 / 18:00 UTC)  │
-│  ├─ Triggers: schedule (cron) / manual (workflow_dispatch)                      │
-│  └─ Calls: mattermost.yml, mostlymatter.yml, outline.yml                        │
-└───────────────────────────────┬─────────────────────────────────────────────────┘
-                                │
-                ┌───────────────┼───────────────┐
-                │               │               │
-                ▼               ▼               ▼
-    ┌───────────────┐  ┌────────────────┐  ┌───────────────┐
-    │  Mattermost   │  │  Mostlymatter  │  │    Outline    │
-    │   Workflow    │  │   Workflow     │  │   Workflow    │
-    └───────┬───────┘  └────────┬───────┘  └───────┬───────┘
-            │                   │                  │
-            └───────────────────┴──────────────────┘
-                                │
-                                ▼
-                  ┌──────────────────────────┐
-                  │    Common 3-Job Flow     │
-                  │  (infos → build → merge) │
-                  └──────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  build.yml (Orchestrator - Every 6 hours at 00:00 / 06:00 / 12:00 / 18:00 UTC)      │
+│  ├─ Triggers: schedule (cron) / manual (workflow_dispatch)                          │
+│  ├─ Mode: Multi-version (default) or Legacy (deprecated)                            │
+│  └─ Calls: *-multi-version.yml workflows (or legacy .yml if USE_MULTI_VERSION=false)│
+└──────────────────────────────────────────┬──────────────────────────────────────────┘
+                                           │
+                   ┌───────────────────────┼────────────────────────┐
+                   │                       │                        │
+                   ▼                       ▼                        ▼
+         ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
+         │  Mattermost        │  │  Mostlymatter      │  │  Outline           │
+         │  Multi-Version     │  │  Multi-Version     │  │  Multi-Version     │
+         │  Workflow          │  │  Workflow          │  │  Workflow          │
+         └─────────┬──────────┘  └─────────┬──────────┘  └──────────┬─────────┘
+                   │                       │                        │
+                   └───────────────────────┴────────────────────────┘
+                                           │
+                                           ▼
+                      ┌──────────────────────────────────────────┐
+                      │    Multi-Version 4-Job Flow              │
+                      │  infos → build → prepare-merge → merge   │
+                      │                                          │
+                      │  (builds last N versions)                │
+                      └──────────────────────────────────────────┘
 ```
 
-### Detailed Job Flow
+## Multi-Version Build System
+
+The current default build mode actively builds the last N versions (default: 10) of each application from upstream. This provides version history for rollbacks and reproducible deployments.
+
+**Important:** All built versions remain in the registry forever (never deleted). The system fetches the last N versions from upstream and builds any missing ones, but does not prune or delete older versions. Storage accumulates over time.
+
+### Key Concepts
+
+1. **Active Version Window:** Fetch last N versions from upstream, build missing ones
+2. **No Pruning:** All built image tags remain in registry indefinitely (storage accumulates)
+3. **Flattened Matrix:** Pre-compute all `version × architecture` combinations
+4. **Incremental Builds:** Only build versions that don't exist in registry
+5. **Semantic Latest:** Use version comparison (not release date) to determine `latest`
+6. **Per-Version Artifacts:** Each version gets its own digest artifacts
+
+### Multi-Version Pipeline
+
+```
+infos job:
+  ├─ Fetch last 10 releases from upstream
+  ├─ Check GHCR for existing images (per version)
+  ├─ Generate flattened matrix:
+  │    [{v: "10.3.1", arch: "amd64", runner: "ubuntu-24.04"},
+  │     {v: "10.3.1", arch: "arm64", runner: "ubuntu-24.04-arm"},
+  │     {v: "10.3.0", arch: "amd64", runner: "ubuntu-24.04"},
+  │     ...]
+  ├─ Determine semantic latest: 10.3.1 (not 10.2.1)
+  └─ Output: versions-matrix, has-builds
+
+build job (if has-builds):
+  ├─ Matrix expands to N × M parallel jobs
+  │    (N versions × M architectures)
+  ├─ Each job builds one version/arch combo
+  └─ Upload digest: digests-app-10.3.1-amd64
+
+prepare-merge job:
+  ├─ Group versions from build matrix
+  └─ Create merge matrix per version
+
+merge job:
+  └─ For each version:
+      ├─ Download digests (all archs)
+      ├─ Create multi-arch manifest
+      ├─ Tag with version: 10.3.1
+      └─ Tag with latest: (if is_latest)
+```
+
+### Detailed Job Flow (Legacy Mode)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -137,6 +191,8 @@ Final Output:
   ghcr.io/namespace/app:latest → Same manifest
 ```
 
+> **Note:** The above describes **legacy single-version mode** (deprecated). This mode only builds the latest version and is kept for backward compatibility. For details on legacy mode, see the Legacy Mode dedicated documentation.
+
 ### Application-Specific Differences
 
 #### Mattermost
@@ -188,82 +244,135 @@ Build Args:     None (uses standard Node.js base images)
 - **Schedule:** Every 6 hours at 00:00 / 06:00 / 12:00 / 18:00 UTC (`cron: '0 */6 * * *'`)
 - **Manual:** Via GitHub Actions UI (`workflow_dispatch`)
 
-**Structure:**
-```yaml
-on:
-  schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
+**Configuration:**
+The orchestrator supports UI-based configuration for manual runs:
 
-jobs:
-  mattermost:
-    uses: ./.github/workflows/mattermost.yml
-  
-  mostlymatter:
-    uses: ./.github/workflows/mostlymatter.yml
-    
-  outline:
-    uses: ./.github/workflows/outline.yml
+```yaml
+workflow_dispatch:
+  inputs:
+    REGISTRY: string (default: ghcr.io)
+    NAMESPACE: string (default: this-is-tobi/mirror)
+    MULTI_ARCH: boolean (default: true)
+    USE_QEMU: boolean (default: false)
+    MAX_VERSIONS: number (default: 10)
+    USE_MULTI_VERSION: boolean (default: true)
 ```
 
-**Parameters passed to apps:**
+**Default Settings (Scheduled Runs):**
+```yaml
+env:
+  USE_MULTI_VERSION: true   # Use multi-version workflows
+  MAX_VERSIONS: 10          # Fetch and build last 10 versions from upstream
+  MULTI_ARCH: true          # Build both amd64 and arm64
+  USE_QEMU: false           # Native builds preferred
+```
+
+**Workflow Selection:**
+The orchestrator conditionally calls either multi-version or legacy workflows:
+
+```yaml
+jobs:
+  mattermost-multi-version:
+    if: USE_MULTI_VERSION == 'true'
+    uses: ./.github/workflows/mattermost-multi-version.yml
+  
+  mattermost:
+    if: USE_MULTI_VERSION == 'false'
+    uses: ./.github/workflows/mattermost.yml
+  
+  # Same pattern for mostlymatter and outline
+```
+
+**Parameters passed to workflows:**
 - `REGISTRY`: Target registry (default: `ghcr.io`)
 - `NAMESPACE`: Target namespace (default: `this-is-tobi/mirror`)
 - `MULTI_ARCH`: Build for both architectures (default: `true`)
-- `USE_QEMU`: Enable QEMU emulation (default: `true`)
+- `USE_QEMU`: Enable QEMU emulation (default: `false`)
+- `MAX_VERSIONS`: Number of versions to fetch and build from upstream (default: `10`, multi-version only)
 
-### 2. Application Workflows
+### 2. Multi-Version Application Workflows
 
-Each application has a dedicated workflow file following the same pattern.
+Each application has a multi-version workflow (default) that fetches the last N versions from upstream and builds any missing ones.
 
-#### Job 1: `infos`
+**Workflows:**
+- `.github/workflows/mattermost-multi-version.yml`
+- `.github/workflows/mostlymatter-multi-version.yml`
+- `.github/workflows/outline-multi-version.yml`
 
-**Purpose:** Gather information and decide whether to build
+**Common Pattern:** 4-job pipeline (infos → build → prepare-merge → merge)
+
+**Note:** These workflows do NOT delete old versions. All built versions accumulate in the registry over time.
+
+#### Job 1: `infos` - Version Discovery & Matrix Generation
+
+**Purpose:** Fetch multiple versions, check registry, generate flattened build matrix
 
 **Steps:**
-1. **Read matrix configuration**
-   ```yaml
-   - name: Read matrix
-     run: |
-       echo "matrix=$(cat apps/mattermost/matrix.json | jq -c .)" >> $GITHUB_OUTPUT
+
+1. **Fetch last N versions from upstream**
+   ```bash
+   # Example for Mattermost
+   VERSIONS=$(curl "https://api.github.com/repos/mattermost/mattermost/releases?per_page=${MAX_VERSIONS}" \
+     | jq -r '[.[] | select(.prerelease == false) | .tag_name | ltrimstr("v")] | unique')
    ```
 
-2. **Get latest official release**
-   ```yaml
-   - name: Get latest release
-     run: |
-       TAG=$(curl -s https://api.github.com/repos/mattermost/mattermost/releases/latest | jq -r '.tag_name')
-       echo "tag=${TAG}" >> $GITHUB_OUTPUT
+2. **Determine semantic "latest"**
+   ```bash
+   LATEST_VERSION=$(echo "$VERSIONS" | jq -r 'sort_by(split(".") | map(tonumber)) | reverse | .[0]')
+   # Example: [10.3.1, 10.3.0, 10.2.1] → 10.3.1
    ```
 
-3. **Check GHCR for existing images**
-   ```yaml
-   - name: Check image exists
-     run: |
-       STATUS=$(docker manifest inspect ghcr.io/.../mattermost:${TAG} > /dev/null 2>&1 && echo "200" || echo "404")
-       echo "image-status=${STATUS}" >> $GITHUB_OUTPUT
+3. **Check GHCR for each version**
+   ```bash
+   for VERSION in $(echo "$VERSIONS" | jq -r '.[]'); do
+     IMAGE_STATUS=$(curl --head "https://ghcr.io/v2/.../manifests/${VERSION}")
+     # If 404, add to build matrix
+   done
    ```
+
+4. **Generate flattened matrix (versions × architectures)**
+   ```bash
+   # Pre-compute all combinations with correct runner assignment
+   BUILD_MATRIX='[
+     {"version": "10.3.1", "arch": "amd64", "runner": "ubuntu-24.04", ...},
+     {"version": "10.3.1", "arch": "arm64", "runner": "ubuntu-24.04-arm", ...},
+     {"version": "10.3.0", "arch": "amd64", "runner": "ubuntu-24.04", ...},
+     ...
+   ]'
+   ```
+
+**Why Flattened Matrix?**
+GitHub Actions doesn't support nested matrices. We can't do:
+```yaml
+matrix:
+  version: [10.3.1, 10.3.0]
+  arch: [amd64, arm64]
+  runner: [ubuntu-24.04, ubuntu-24.04-arm]  # ❌ Wrong mapping!
+```
+
+Instead, we pre-compute all combinations with correct runner-per-arch mapping.
 
 **Outputs:**
-- `tag` - Latest version to build
-- `matrix` - Build matrix from JSON
-- `image-status` - Whether image already exists (200/404)
+- `versions-matrix` - Flattened array of version/arch/runner combinations
+- `has-builds` - Boolean flag indicating if any builds are needed
 
 **Build Decision:**
-- **Build if:** `image-status == '404'` (image doesn't exist)
-- **Skip if:** `image-status == '200'` (image already exists)
+- **Build if:** `has-builds == 'true'` (at least one version missing)
+- **Skip if:** `has-builds == 'false'` (all versions exist)
 
-#### Job 2: `build`
+#### Job 2: `build` - Parallel Multi-Arch Builds
 
-**Purpose:** Build multi-architecture images in parallel
+**Purpose:** Build all missing version/architecture combinations in parallel
 
 **Depends on:** `infos` job
-**Condition:** `needs.infos.outputs.image-status == '404'`
+**Condition:** `needs.infos.outputs.has-builds == 'true'`
 
 **Matrix Strategy:**
 ```yaml
 strategy:
+  fail-fast: false
   matrix:
+    config: ${{ fromJSON(needs.infos.outputs.versions-matrix) }}
     images: ${{ fromJSON(needs.infos.outputs.matrix) }}
 ```
 
@@ -344,54 +453,82 @@ strategy:
 - Cache rotation to prevent unlimited growth
 - Significantly speeds up subsequent builds
 
-#### Job 3: `merge`
+#### Job 3: `prepare-merge` - Group Versions for Merging
 
-**Purpose:** Create multi-architecture manifests
+**Purpose:** Create a merge matrix grouped by version
 
 **Depends on:** `infos`, `build` jobs
-**Condition:** `needs.infos.outputs.image-status == '404'`
-
-**Matrix Strategy:** Runs once per component
+**Condition:** `needs.infos.outputs.has-builds == 'true'`
 
 **Key Steps:**
 
-1. **Download all digests**
+```bash
+# Extract unique versions from build matrix and their is_latest flags
+BUILD_MATRIX='${{ needs.infos.outputs.versions-matrix }}'
+MERGE_MATRIX=$(echo "$BUILD_MATRIX" | jq -c '
+  [group_by(.version) | .[] | {version: .[0].version, is_latest: .[0].is_latest}]
+')
+```
+
+**Outputs:**
+- `merge-matrix` - Array of unique versions with latest flags
+  ```json
+  [
+    {"version": "10.3.1", "is_latest": true},
+    {"version": "10.3.0", "is_latest": false},
+    {"version": "10.2.1", "is_latest": false}
+  ]
+  ```
+
+#### Job 4: `merge` - Create Multi-Arch Manifests
+
+**Purpose:** Create multi-architecture manifests for each version
+
+**Depends on:** `infos`, `build`, `prepare-merge` jobs
+**Condition:** `needs.infos.outputs.has-builds == 'true'`
+
+**Matrix Strategy:** Runs once per version
+
+```yaml
+strategy:
+  matrix:
+    config: ${{ fromJSON(needs.prepare-merge.outputs.merge-matrix) }}
+```
+
+**Key Steps:**
+
+1. **Download all digests for this version**
    ```yaml
    - name: Download digests
      uses: actions/download-artifact@v4
      with:
-       pattern: digests-${{ matrix.component }}-*
-       path: /tmp/digests/${{ matrix.component }}
+       pattern: digests-mattermost-${{ matrix.config.version }}-*
+       path: /tmp/digests/mattermost
        merge-multiple: true
    ```
 
-2. **Generate tags**
+2. **Generate tags (version + optionally latest)**
    ```yaml
    - name: Docker meta
      uses: docker/metadata-action@v5
      with:
        images: ghcr.io/.../mattermost
        tags: |
-         type=raw,value=${{ needs.infos.outputs.tag }}
-         type=raw,value=latest
+         type=raw,value=${{ matrix.config.version }}
+         type=raw,value=latest,enable=${{ matrix.config.is_latest }}
    ```
 
 3. **Create manifest and push**
    ```yaml
    - name: Create manifest list and push
      run: |
-       docker buildx imagetools create \
-         -t ghcr.io/.../mattermost:${{ needs.infos.outputs.tag }} \
-         -t ghcr.io/.../mattermost:latest \
+       docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
          $(printf 'ghcr.io/.../mattermost@sha256:%s ' *)
    ```
 
-4. **Inspect final manifest**
-   ```yaml
-   - name: Inspect image
-     run: |
-       docker buildx imagetools inspect ghcr.io/.../mattermost:${{ needs.infos.outputs.tag }}
-   ```
+**Result:**
+- Version tag: `ghcr.io/.../mattermost:10.3.1` → multi-arch manifest
+- Latest tag: `ghcr.io/.../mattermost:latest` → only for highest version
 
 **Output:** Multi-arch manifest containing both amd64 and arm64 digests
 
@@ -632,17 +769,6 @@ jobs:
     steps:
       # Download digests, create manifest, tag
 ```
-
-## Performance Metrics
-
-**Typical build times:**
-- Mattermost: ~15-20 minutes (2 arch builds)
-- Mostlymatter: ~15-20 minutes (2 arch builds, same as Mattermost)
-- Outline: ~10-15 minutes (2 arch builds)
-
-**Cache benefits:**
-- First build: 100% time
-- Subsequent builds with cache: 30-50% time reduction
 
 ## Application-Specific Implementations
 

@@ -36,7 +36,7 @@ on:
         description: Use QEMU emulator for arm64
         required: true
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
@@ -222,7 +222,7 @@ jobs:
   build:
     name: Build application
     runs-on: ${{ matrix.runners }}
-    if: always()
+    if: ${{ !cancelled() && needs.infos.outputs.image-status == '404' }}
     needs:
       - infos
       - build-base
@@ -313,7 +313,7 @@ jobs:
   merge:
     name: Merge digest
     runs-on: ubuntu-latest
-    if: always()
+    if: ${{ !cancelled() && needs.infos.outputs.image-status == '404' }}
     needs:
       - infos
       - build-base
@@ -321,7 +321,6 @@ jobs:
       - build
     steps:
       - name: Download digests
-        if: ${{ needs.infos.outputs.image-status == '404' }}
         uses: actions/download-artifact@v4
         with:
           pattern: digests-${{ env.IMAGE_NAME }}-*

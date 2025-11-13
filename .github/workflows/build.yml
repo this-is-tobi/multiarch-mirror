@@ -2,6 +2,37 @@ name: Global build
 
 on:
   workflow_dispatch:
+    inputs:
+      REGISTRY:
+        description: Target registry to push images
+        required: false
+        type: string
+        default: ghcr.io
+      NAMESPACE:
+        description: Target namespace to the given registry
+        required: false
+        type: string
+        default: this-is-tobi/mirror
+      MULTI_ARCH:
+        description: Build for both amd64 and arm64
+        required: false
+        type: boolean
+        default: true
+      USE_QEMU:
+        description: Use QEMU emulator for arm64
+        required: false
+        type: boolean
+        default: false
+      USE_MULTI_VERSION:
+        description: Use multi-version workflows (builds last N versions instead of just latest)
+        required: false
+        type: boolean
+        default: true
+      MAX_VERSIONS:
+        description: Maximum number of versions to check and build (for multi-version workflows)
+        required: false
+        type: number
+        default: 10
   schedule:
   - cron: '0 */6 * * *'
 
@@ -9,21 +40,34 @@ env:
   REGISTRY: "ghcr.io"
   NAMESPACE: "this-is-tobi/mirror"
   MULTI_ARCH: true
-  USE_QEMU: true
+  USE_QEMU: false
+  USE_MULTI_VERSION: true
+  MAX_VERSIONS: 10
 
 jobs:
   expose-vars:
     runs-on: ubuntu-latest
     outputs:
-      REGISTRY: ${{ env.REGISTRY }}
-      NAMESPACE: ${{ env.NAMESPACE }}
-      MULTI_ARCH: ${{ env.MULTI_ARCH }}
-      USE_QEMU: ${{ env.USE_QEMU }}
+      REGISTRY: ${{ steps.set-vars.outputs.REGISTRY }}
+      NAMESPACE: ${{ steps.set-vars.outputs.NAMESPACE }}
+      MULTI_ARCH: ${{ steps.set-vars.outputs.MULTI_ARCH }}
+      USE_QEMU: ${{ steps.set-vars.outputs.USE_QEMU }}
+      MAX_VERSIONS: ${{ steps.set-vars.outputs.MAX_VERSIONS }}
+      USE_MULTI_VERSION: ${{ steps.set-vars.outputs.USE_MULTI_VERSION }}
     steps:
-      - name: Exposing env vars
-        run: echo "Exposing env vars"
+      - name: Set variables
+        id: set-vars
+        run: |
+          # Use inputs if available (manual trigger), otherwise use env defaults (scheduled trigger)
+          echo "REGISTRY=${{ inputs.REGISTRY || env.REGISTRY }}" >> $GITHUB_OUTPUT
+          echo "NAMESPACE=${{ inputs.NAMESPACE || env.NAMESPACE }}" >> $GITHUB_OUTPUT
+          echo "MULTI_ARCH=${{ inputs.MULTI_ARCH != '' && inputs.MULTI_ARCH || env.MULTI_ARCH }}" >> $GITHUB_OUTPUT
+          echo "USE_QEMU=${{ inputs.USE_QEMU != '' && inputs.USE_QEMU || env.USE_QEMU }}" >> $GITHUB_OUTPUT
+          echo "MAX_VERSIONS=${{ inputs.MAX_VERSIONS || env.MAX_VERSIONS }}" >> $GITHUB_OUTPUT
+          echo "USE_MULTI_VERSION=${{ inputs.USE_MULTI_VERSION != '' && inputs.USE_MULTI_VERSION || env.USE_MULTI_VERSION }}" >> $GITHUB_OUTPUT
 
   mattermost:
+    if: needs.expose-vars.outputs.USE_MULTI_VERSION == 'false'
     uses: ./.github/workflows/mattermost.yml
     needs:
     - expose-vars
@@ -36,7 +80,23 @@ jobs:
       MULTI_ARCH: ${{ needs.expose-vars.outputs.MULTI_ARCH == 'true' }}
       USE_QEMU: ${{ needs.expose-vars.outputs.USE_QEMU == 'true' }}
 
+  mattermost-multi-version:
+    if: needs.expose-vars.outputs.USE_MULTI_VERSION == 'true'
+    uses: ./.github/workflows/mattermost-multi-version.yml
+    needs:
+    - expose-vars
+    permissions:
+      contents: read
+      packages: write
+    with:
+      REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
+      NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
+      MULTI_ARCH: ${{ needs.expose-vars.outputs.MULTI_ARCH == 'true' }}
+      USE_QEMU: ${{ needs.expose-vars.outputs.USE_QEMU == 'true' }}
+      MAX_VERSIONS: ${{ fromJSON(needs.expose-vars.outputs.MAX_VERSIONS) }}
+
   mostlymatter:
+    if: needs.expose-vars.outputs.USE_MULTI_VERSION == 'false'
     uses: ./.github/workflows/mostlymatter.yml
     needs:
     - expose-vars
@@ -49,7 +109,23 @@ jobs:
       MULTI_ARCH: ${{ needs.expose-vars.outputs.MULTI_ARCH == 'true' }}
       USE_QEMU: ${{ needs.expose-vars.outputs.USE_QEMU == 'true' }}
 
+  mostlymatter-multi-version:
+    if: needs.expose-vars.outputs.USE_MULTI_VERSION == 'true'
+    uses: ./.github/workflows/mostlymatter-multi-version.yml
+    needs:
+    - expose-vars
+    permissions:
+      contents: read
+      packages: write
+    with:
+      REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
+      NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
+      MULTI_ARCH: ${{ needs.expose-vars.outputs.MULTI_ARCH == 'true' }}
+      USE_QEMU: ${{ needs.expose-vars.outputs.USE_QEMU == 'true' }}
+      MAX_VERSIONS: ${{ fromJSON(needs.expose-vars.outputs.MAX_VERSIONS) }}
+
   outline:
+    if: needs.expose-vars.outputs.USE_MULTI_VERSION == 'false'
     uses: ./.github/workflows/outline.yml
     needs:
     - expose-vars
@@ -61,3 +137,18 @@ jobs:
       NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
       MULTI_ARCH: ${{ needs.expose-vars.outputs.MULTI_ARCH == 'true' }}
       USE_QEMU: ${{ needs.expose-vars.outputs.USE_QEMU == 'true' }}
+
+  outline-multi-version:
+    if: needs.expose-vars.outputs.USE_MULTI_VERSION == 'true'
+    uses: ./.github/workflows/outline-multi-version.yml
+    needs:
+    - expose-vars
+    permissions:
+      contents: read
+      packages: write
+    with:
+      REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
+      NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
+      MULTI_ARCH: ${{ needs.expose-vars.outputs.MULTI_ARCH == 'true' }}
+      USE_QEMU: ${{ needs.expose-vars.outputs.USE_QEMU == 'true' }}
+      MAX_VERSIONS: ${{ fromJSON(needs.expose-vars.outputs.MAX_VERSIONS) }}

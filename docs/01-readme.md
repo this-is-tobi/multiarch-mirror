@@ -22,27 +22,28 @@ This repository bridges that gap by creating multi-architecture images that work
 
 ## Key Features
 
-### Automated Daily Builds
+### Automated Multi-Version Builds
 - Scheduled workflows run every 6 hours (00:00 / 06:00 / 12:00 / 18:00 UTC)
+- Actively builds the **last 10 versions** of each application (configurable)
+- All built versions remain in registry (never deleted - storage accumulates over time)
+- Mirrors official release tags (e.g., `10.3.1`, `0.82.2`)
 - Automatically detect new upstream versions
-- Build and push only when new versions are available
+- Build only missing images (efficient incremental updates)
+- Smart semantic versioning to determine true "latest"
+- Version-specific tags for reproducible deployments
 - Can be triggered manually via GitHub Actions UI
 
 ### Multi-Architecture Support
 - **amd64** (x86_64) - Standard Intel/AMD processors
 - **arm64** (aarch64) - ARM-based processors
-
-### Version Synchronization
-- Mirrors official release tags (e.g., `v2.14.0`)
-- Includes `latest` tag for convenience
-- Pre-build checks prevent unnecessary builds
-- Smart version comparison logic
+- Multi-arch manifests for automatic platform selection
+- Docker Buildx for true cross-compilation
 
 ### Production Ready
 - Published to GitHub Container Registry (GHCR)
-- Multi-arch manifests for automatic platform selection
-- Docker Buildx for true cross-compilation
+- Pre-build checks prevent unnecessary rebuilds
 - Comprehensive testing and verification
+- No authentication required for pulling images
 
 ## Currently Supported Applications
 
@@ -131,10 +132,13 @@ docker manifest inspect ghcr.io/this-is-tobi/mirror/mattermost:latest
 
 ## Version Policy
 
-- **Official version tags**: Mirror exact upstream versions (e.g., `v9.11.0`, `v2.14.0`)
-- **Latest tag**: Always points to most recent version
+- **Multi-version building**: Actively builds the last 10 versions (configurable) - older built versions remain available but stop receiving updates
+- **Storage policy**: All built versions remain in registry forever (never deleted - storage accumulates over time)
+- **Official version tags**: Mirror exact upstream versions (e.g., `10.3.1`, `0.82.2`)
+- **Latest tag**: Points to highest semantic version (not just most recent release)
 - **No pre-releases**: Only stable releases are mirrored
 - **Automatic updates**: New versions detected and built every 6 hours
+- **Incremental builds**: Only missing versions are built (efficient)
 
 ## Registry Information
 

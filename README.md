@@ -7,10 +7,11 @@ The purpose of this repository is to create multi-arch images for official image
 Comprehensive documentation is available:
 
 1. [Introduction](./docs/01-readme.md) - Overview and key features
-2. [Architecture & Workflows](./docs/02-architecture.md) - How the build system works
+2. [Architecture & Workflows](./docs/02-architecture.md) - How the build system works (multi-version by default)
 3. [Adding New Applications](./docs/03-adding-applications.md) - Step-by-step guide for contributors
 4. [Build Configurations](./docs/04-build-configurations.md) - Matrix.json reference
 5. [Troubleshooting](./docs/05-troubleshooting.md) - Common issues and solutions
+6. [Legacy Mode](./docs/06-legacy-mode.md) - Deprecated single-version mode (will be removed)
 
 ## Quick Start
 
@@ -38,15 +39,24 @@ See [Adding New Applications](./docs/03-adding-applications.md) for the complete
 
 The workflow runs every 6 hours (00:00 / 06:00 / 12:00 / 18:00 UTC) or can be triggered manually from the Github user interface.
 
-> *__Notes:__ Before each application build, the CI compares the last tag of the official version with the last tag of the mirror image to check whether a new build should be triggered.*
+### Multi-Version Build System
+
+The CI actively builds the **last 10 versions** of each application (configurable via `MAX_VERSIONS`). Key features:
+- Fetches the last N versions from upstream and builds any missing ones
+- All built versions remain in registry (never deleted - storage accumulates over time)
+- Version-specific tags maintained alongside `latest`
+- Only missing images are built (efficient incremental updates)
+- True "latest" is determined using semantic versioning (not release date)
+
+> *__Notes:__ The CI checks which versions already exist in the registry and builds only the missing ones. The `latest` tag points to the highest semantic version. Old versions are never deleted but stop receiving updates once they fall outside the N most recent versions.*
 
 
 ## Images
 
-| Application  | Pull command                                                  | Source                                                            |
-| ------------ | ------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Mattermost   | `docker pull ghcr.io/this-is-tobi/mirror/mattermost:latest`   | [GitHub](https://github.com/mattermost/mattermost)                |
-| Mostlymatter | `docker pull ghcr.io/this-is-tobi/mirror/mostlymatter:latest` | [Framagit](https://framagit.org/framasoft/framateam/mostlymatter) |
-| Outline      | `docker pull ghcr.io/this-is-tobi/mirror/outline:latest`      | [GitHub](https://github.com/outline/outline)                      |
+| Application  | Pull command                                                  | Source                                                            | Available Tags                              |
+| ------------ | ------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------- |
+| Mattermost   | `docker pull ghcr.io/this-is-tobi/mirror/mattermost:latest`   | [GitHub](https://github.com/mattermost/mattermost)                | `latest`, `10.3.1`, `10.3.0`, `10.2.1`, ... |
+| Mostlymatter | `docker pull ghcr.io/this-is-tobi/mirror/mostlymatter:latest` | [Framagit](https://framagit.org/framasoft/framateam/mostlymatter) | `latest`, `11.0.4`, `11.0.3`, `11.0.2`, ... |
+| Outline      | `docker pull ghcr.io/this-is-tobi/mirror/outline:latest`      | [GitHub](https://github.com/outline/outline)                      | `latest`, `0.82.2`, `0.82.1`, `0.82.0`, ... |
 
-> *__Notes:__ All images are mirrored with the official tag version.*
+> *__Notes:__ All images are mirrored with official version tags. The CI actively builds the last 10 versions (older built versions remain available but stop receiving updates). Use `latest` for the most recent version or specify a version tag for reproducible deployments.*

@@ -36,7 +36,7 @@ on:
         description: Use QEMU emulator for arm64
         required: true
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read

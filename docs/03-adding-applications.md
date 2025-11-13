@@ -351,7 +351,7 @@ If the application requires Go compilation, add this step before the build:
     cp /tmp/binaries/myapp ./myapp
     chmod +x ./myapp
     
-    echo "✅ Binary compiled for ${ARCH}"
+    echo "Binary compiled for ${ARCH}"
     file ./myapp
 ```
 
@@ -715,11 +715,11 @@ sed -i 's#curl -L \$MM_PACKAGE | tar -xvz#curl -L \$MM_PACKAGE | tar -xvz \&\& r
 ```
 
 **Benefits:**
-- ✅ Minimal Dockerfile modifications (only 3 sed commands)
-- ✅ All supporting files guaranteed present and version-matched
-- ✅ No directory renaming complexity
-- ✅ Uses official Dockerfile structure from Mostlymatter repository
-- ✅ Simple and maintainable
+- Minimal Dockerfile modifications (only 3 sed commands)
+- All supporting files guaranteed present and version-matched
+- No directory renaming complexity
+- Uses official Dockerfile structure from Mostlymatter repository
+- Simple and maintainable
 
 **Source:** Full implementation in `.github/workflows/mostlymatter.yml`
 
