@@ -12,6 +12,7 @@ Comprehensive documentation is available:
 4. [Build Configurations](./docs/04-build-configurations.md) - Matrix.json reference
 5. [Troubleshooting](./docs/05-troubleshooting.md) - Common issues and solutions
 6. [Legacy Mode](./docs/06-legacy-mode.md) - Deprecated single-version mode (will be removed)
+7. [Attestations](./docs/07-attestations.md) - SBOMs, signatures, and provenance
 
 ## Quick Start
 

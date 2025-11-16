@@ -41,6 +41,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write  # Required for cosign keyless signing
 
 env:
   IMAGE_NAME: mattermost
@@ -210,3 +211,120 @@ jobs:
       - name: Inspect image
         run: |
           docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+
+  attest:
+    name: Generate and attach attestations
+    runs-on: ubuntu-latest
+    if: ${{ needs.infos.outputs.image-status == '404' }}
+    needs:
+      - infos
+      - merge
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SBOM
+        run: |
+          trivy image \
+            --format spdx-json \
+            --output sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Attest SBOM to version tag
+        run: |
+          cosign attest \
+            --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Attest SBOM to latest tag
+        run: |
+          cosign attest \
+            --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Sign version tag
+        run: |
+          cosign sign --yes ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Sign latest tag
+        run: |
+          cosign sign --yes ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Generate and attest provenance
+        run: |
+          cat > provenance.json <<EOF
+          {
+            "buildType": "https://github.com/slsa-framework/slsa/blob/v1.0/provenance",
+            "builder": {
+              "id": "https://github.com/${{ github.repository }}/actions/workflows/${{ github.workflow }}"
+            },
+            "invocation": {
+              "configSource": {
+                "uri": "git+https://github.com/${{ github.repository }}",
+                "digest": {
+                  "sha1": "${{ github.sha }}"
+                },
+                "entryPoint": ".github/workflows/mattermost.yml"
+              },
+              "parameters": {
+                "registry": "${{ inputs.REGISTRY }}",
+                "namespace": "${{ inputs.NAMESPACE }}",
+                "version": "${{ needs.infos.outputs.tag }}",
+                "multi_arch": "${{ inputs.MULTI_ARCH }}",
+                "use_qemu": "${{ inputs.USE_QEMU }}"
+              },
+              "environment": {
+                "runner": "ubuntu-latest",
+                "arch": "$(uname -m)",
+                "os": "$(uname -s)",
+                "os_version": "$(lsb_release -d | cut -f2)",
+                "docker_version": "$(docker --version)",
+                "buildx_version": "$(docker buildx version)"
+              }
+            },
+            "metadata": {
+              "buildInvocationId": "${{ github.run_id }}",
+              "buildStartedOn": "${{ github.event.repository.updated_at }}",
+              "buildFinishedOn": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "completeness": {
+                "parameters": true,
+                "environment": true,
+                "materials": true
+              }
+            },
+            "materials": [
+              {
+                "uri": "git+https://github.com/mattermost/mattermost",
+                "digest": {
+                  "gitCommit": "v${{ needs.infos.outputs.tag }}"
+                }
+              }
+            ]
+          }
+          EOF
+          
+          cosign attest \
+            --yes \
+            --type slsaprovenance \
+            --predicate provenance.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
+          
+          cosign attest \
+            --yes \
+            --type slsaprovenance \
+            --predicate provenance.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest

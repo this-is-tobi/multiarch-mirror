@@ -91,6 +91,14 @@ merge job:
       ├─ Create multi-arch manifest
       ├─ Tag with version: 10.3.1
       └─ Tag with latest: (if is_latest)
+
+attest job:
+  └─ For each version:
+      ├─ Generate SBOM with Trivy (SPDX format)
+      ├─ Attest SBOM to version tag (and latest if applicable)
+      ├─ Sign images with Cosign (keyless)
+      ├─ Generate SLSA provenance metadata
+      └─ Attest provenance to version tag (and latest if applicable)
 ```
 
 ### Detailed Job Flow (Legacy Mode)
@@ -183,12 +191,49 @@ merge job:
 │  └───────────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  Job 4: attest                                                                  │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │  Purpose: Generate and attach security attestations                       │  │
+│  │  ─────────────────────────────────────────────────────────────────────────│  │
+│  │  1. Install tools:                                                        │  │
+│  │     • Cosign v3 (sigstore/cosign-installer@v3)                            │  │
+│  │     • Trivy (aquasecurity/setup-trivy@v0.2.0)                             │  │
+│  │                                                                           │  │
+│  │  2. Generate SBOM (Software Bill of Materials):                           │  │
+│  │     trivy image --format spdx-json --output sbom.spdx.json <image>        │  │
+│  │                                                                           │  │
+│  │  3. Attest SBOM to image tags:                                            │  │
+│  │     cosign attest --type spdxjson --predicate sbom.spdx.json <image:tag>  │  │
+│  │     (applied to version tag and latest if applicable)                     │  │
+│  │                                                                           │  │
+│  │  4. Sign images with keyless signing:                                     │  │
+│  │     cosign sign --yes <image:tag>                                         │  │
+│  │     (uses GitHub OIDC for identity)                                       │  │
+│  │                                                                           │  │
+│  │  5. Generate SLSA provenance:                                             │  │
+│  │     • Build metadata (workflow, repository, commit)                       │  │
+│  │     • Build parameters (registry, namespace, version)                     │  │
+│  │     • Materials (upstream source reference)                               │  │
+│  │                                                                           │  │
+│  │  6. Attest provenance to image tags:                                      │  │
+│  │     cosign attest --type slsaprovenance --predicate provenance.json       │  │
+│  │                                                                           │  │
+│  │  Result: Images with SBOM, signatures, and provenance in GHCR             │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
 Final Output:
   ghcr.io/namespace/app:{version} → Multi-arch manifest
   ├─ linux/amd64 → sha256:abc123...
   └─ linux/arm64 → sha256:def456...
   
   ghcr.io/namespace/app:latest → Same manifest
+  
+  Attestations (OCI artifacts in GHCR):
+  ├─ SBOM (SPDX format)
+  ├─ Cryptographic signature
+  └─ SLSA provenance
 ```
 
 > **Note:** The above describes **legacy single-version mode** (deprecated). This mode only builds the latest version and is kept for backward compatibility. For details on legacy mode, see the Legacy Mode dedicated documentation.

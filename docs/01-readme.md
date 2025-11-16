@@ -39,6 +39,13 @@ This repository bridges that gap by creating multi-architecture images that work
 - Multi-arch manifests for automatic platform selection
 - Docker Buildx for true cross-compilation
 
+### Security and Attestations
+- **SBOM (Software Bill of Materials)** - Complete dependency inventory in SPDX format
+- **Cryptographic signatures** - Cosign keyless signing with GitHub OIDC
+- **SLSA Provenance** - Build metadata and traceability
+- All attestations stored in GHCR as OCI artifacts
+- Verifiable with standard Cosign tools
+
 ### Production Ready
 - Published to GitHub Container Registry (GHCR)
 - Pre-build checks prevent unnecessary rebuilds
@@ -129,6 +136,24 @@ docker manifest inspect ghcr.io/this-is-tobi/mirror/mattermost:latest
 4. **Push by Digest**: Individual architecture images pushed separately
 5. **Manifest Creation**: Multi-arch manifest created pointing to both digests
 6. **Tagging**: Images tagged with version and `latest`
+7. **Attestations**: SBOM, signatures, and provenance generated and attached
+
+## Security and Verification
+
+All images include comprehensive security attestations. To verify an image:
+
+```bash
+# Install Cosign
+brew install cosign
+
+# Verify image signature
+cosign verify \
+  --certificate-identity-regexp "https://github.com/this-is-tobi/multiarch-mirror" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/this-is-tobi/mirror/mattermost:10.3.1
+```
+
+For complete documentation on attestations and verification, see [Attestations Documentation](07-attestations.md).
 
 ## Version Policy
 

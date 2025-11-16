@@ -41,6 +41,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write  # Required for cosign keyless signing
 
 env:
   IMAGE_BASE_NAME: base-outline
@@ -219,6 +220,129 @@ jobs:
         run: |
           docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ steps.meta.outputs.version }}
 
+  attest-base:
+    name: Generate and attach base attestations
+    runs-on: ubuntu-latest
+    if: ${{ needs.infos.outputs.image-status-base == '404' }}
+    needs:
+      - infos
+      - merge-base
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: true
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}
+          tags: |
+            type=raw,value=${{ needs.infos.outputs.tag }},enable=${{ needs.infos.outputs.tag != '' }}
+            type=raw,value=latest
+
+      - name: Get image digest
+        id: digest
+        run: |
+          DIGEST=$(docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ needs.infos.outputs.tag }} --format '{{.Manifest.Digest}}')
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Generate SBOM
+        run: |
+          trivy image --format spdx-json --output sbom-${{ env.IMAGE_BASE_NAME }}.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+
+      - name: Attest SBOM
+        run: |
+          cosign attest --yes \
+            --type spdxjson \
+            --predicate sbom-${{ env.IMAGE_BASE_NAME }}.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+
+      - name: Sign base image version tag
+        run: |
+          cosign sign --yes \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Sign base image latest tag
+        run: |
+          cosign sign --yes \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:latest
+
+      - name: Generate and attest provenance
+        run: |
+          cat > provenance-${{ env.IMAGE_BASE_NAME }}.json <<EOF
+          {
+            "buildType": "https://github.com/actions/workflow@v1",
+            "builder": {
+              "id": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            },
+            "invocation": {
+              "configSource": {
+                "uri": "${{ github.server_url }}/${{ github.repository }}",
+                "digest": {
+                  "sha1": "${{ github.sha }}"
+                },
+                "entryPoint": "${{ github.workflow }}"
+              },
+              "parameters": {
+                "registry": "${{ inputs.REGISTRY }}",
+                "namespace": "${{ inputs.NAMESPACE }}",
+                "version": "${{ needs.infos.outputs.tag }}",
+                "multi_arch": "${{ inputs.MULTI_ARCH }}",
+                "use_qemu": "${{ inputs.USE_QEMU }}",
+                "image_type": "base"
+              },
+              "environment": {
+                "runner": "ubuntu-latest",
+                "arch": "$(uname -m)",
+                "os": "$(uname -s)",
+                "os_version": "$(lsb_release -d | cut -f2)",
+                "docker_version": "$(docker --version)",
+                "buildx_version": "$(docker buildx version)"
+              }
+            },
+            "metadata": {
+              "buildInvocationId": "${{ github.run_id }}",
+              "buildStartedOn": "${{ github.event.repository.updated_at }}",
+              "buildFinishedOn": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "completeness": {
+                "parameters": true,
+                "environment": true,
+                "materials": false
+              },
+              "reproducible": false
+            },
+            "materials": [
+              {
+                "uri": "${{ github.server_url }}/${{ github.repository }}",
+                "digest": {
+                  "sha1": "${{ github.sha }}"
+                }
+              }
+            ]
+          }
+          EOF
+
+          cosign attest --yes \
+            --type slsaprovenance1 \
+            --predicate provenance-${{ env.IMAGE_BASE_NAME }}.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+
   build:
     name: Build application
     runs-on: ${{ matrix.runners }}
@@ -361,3 +485,120 @@ jobs:
         if: ${{ needs.infos.outputs.image-status == '404' }}
         run: |
           docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+
+  attest:
+    name: Generate and attach attestations
+    runs-on: ubuntu-latest
+    if: ${{ needs.infos.outputs.image-status == '404' }}
+    needs:
+      - infos
+      - merge
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SBOM
+        run: |
+          trivy image \
+            --format spdx-json \
+            --output sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Attest SBOM to version tag
+        run: |
+          cosign attest \
+            --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Attest SBOM to latest tag
+        run: |
+          cosign attest \
+            --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Sign version tag
+        run: |
+          cosign sign --yes ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Sign latest tag
+        run: |
+          cosign sign --yes ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Generate and attest provenance
+        run: |
+          cat > provenance.json <<EOF
+          {
+            "buildType": "https://github.com/slsa-framework/slsa/blob/v1.0/provenance",
+            "builder": {
+              "id": "https://github.com/${{ github.repository }}/actions/workflows/${{ github.workflow }}"
+            },
+            "invocation": {
+              "configSource": {
+                "uri": "git+https://github.com/${{ github.repository }}",
+                "digest": {
+                  "sha1": "${{ github.sha }}"
+                },
+                "entryPoint": ".github/workflows/outline.yml"
+              },
+              "parameters": {
+                "registry": "${{ inputs.REGISTRY }}",
+                "namespace": "${{ inputs.NAMESPACE }}",
+                "version": "${{ needs.infos.outputs.tag }}",
+                "multi_arch": "${{ inputs.MULTI_ARCH }}",
+                "use_qemu": "${{ inputs.USE_QEMU }}"
+              },
+              "environment": {
+                "runner": "ubuntu-latest",
+                "arch": "$(uname -m)",
+                "os": "$(uname -s)",
+                "os_version": "$(lsb_release -d | cut -f2)",
+                "docker_version": "$(docker --version)",
+                "buildx_version": "$(docker buildx version)"
+              }
+            },
+            "metadata": {
+              "buildInvocationId": "${{ github.run_id }}",
+              "buildStartedOn": "${{ github.event.repository.updated_at }}",
+              "buildFinishedOn": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "completeness": {
+                "parameters": true,
+                "environment": true,
+                "materials": true
+              }
+            },
+            "materials": [
+              {
+                "uri": "git+https://github.com/outline/outline",
+                "digest": {
+                  "gitCommit": "v${{ needs.infos.outputs.tag }}"
+                }
+              }
+            ]
+          }
+          EOF
+          
+          cosign attest \
+            --yes \
+            --type slsaprovenance \
+            --predicate provenance.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
+          
+          cosign attest \
+            --yes \
+            --type slsaprovenance \
+            --predicate provenance.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
