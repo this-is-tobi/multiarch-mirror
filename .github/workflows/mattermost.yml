@@ -121,6 +121,19 @@ jobs:
         uses: docker/setup-qemu-action@v3
         if: ${{ inputs.USE_QEMU }}
 
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}
+          labels: |
+            org.opencontainers.image.title=Mattermost
+            org.opencontainers.image.description=Multi-arch (amd64/arm64) mirror of Mattermost - Open-source team collaboration platform
+            org.opencontainers.image.vendor=this-is-tobi
+            io.github.multiarch-mirror.upstream.repo=mattermost/mattermost
+            io.github.multiarch-mirror.upstream.version=${{ needs.infos.outputs.tag }}
+            io.github.multiarch-mirror.architectures=amd64,arm64
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -138,10 +151,9 @@ jobs:
           provenance: false
           platforms: ${{ matrix.images.platforms }}
           outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             MM_PACKAGE=${{ matrix.images.build.args.MM_PACKAGE }}
-          # cache-from: type=gha
-          # cache-to: type=gha,mode=max
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
           

@@ -131,6 +131,20 @@ jobs:
         uses: docker/setup-qemu-action@v3
         if: ${{ inputs.USE_QEMU }}
 
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}
+          labels: |
+            org.opencontainers.image.title=Outline Base Image
+            org.opencontainers.image.description=Multi-arch (amd64/arm64) base image for Outline - Modern wiki and knowledge base
+            org.opencontainers.image.vendor=this-is-tobi
+            io.github.multiarch-mirror.upstream.repo=outline/outline
+            io.github.multiarch-mirror.upstream.version=${{ needs.infos.outputs.tag }}
+            io.github.multiarch-mirror.architectures=amd64,arm64
+            io.github.multiarch-mirror.image.type=base
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -148,8 +162,7 @@ jobs:
           provenance: false
           platforms: ${{ matrix.images.platforms }}
           outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          # cache-from: type=gha
-          # cache-to: type=gha,mode=max
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
           
@@ -385,6 +398,20 @@ jobs:
         if: ${{ needs.infos.outputs.image-status == '404' && inputs.USE_QEMU }}
         uses: docker/setup-qemu-action@v3
 
+      - name: Docker meta
+        if: ${{ needs.infos.outputs.image-status == '404' }}
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}
+          labels: |
+            org.opencontainers.image.title=Outline
+            org.opencontainers.image.description=Multi-arch (amd64/arm64) mirror of Outline - Modern wiki and knowledge base
+            org.opencontainers.image.vendor=this-is-tobi
+            io.github.multiarch-mirror.upstream.repo=outline/outline
+            io.github.multiarch-mirror.upstream.version=${{ needs.infos.outputs.tag }}
+            io.github.multiarch-mirror.architectures=amd64,arm64
+
       - name: Login to GitHub Container Registry
         if: ${{ needs.infos.outputs.image-status == '404' }}
         uses: docker/login-action@v3
@@ -404,8 +431,7 @@ jobs:
           provenance: false
           platforms: ${{ matrix.images.platforms }}
           outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          # cache-from: type=gha
-          # cache-to: type=gha,mode=max
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
           

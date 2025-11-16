@@ -263,6 +263,20 @@ jobs:
         uses: docker/setup-qemu-action@v3
         if: ${{ inputs.USE_QEMU }}
 
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}
+          labels: |
+            org.opencontainers.image.title=Mostlymatter
+            org.opencontainers.image.description=Multi-arch (amd64/arm64) mirror of Mostlymatter - Fork of Mattermost by Framasoft without user limitations
+            org.opencontainers.image.vendor=this-is-tobi
+            io.github.multiarch-mirror.upstream.repo=framasoft/framateam/mostlymatter
+            io.github.multiarch-mirror.upstream.version=${{ matrix.config.version }}
+            io.github.multiarch-mirror.architectures=amd64,arm64
+            io.github.multiarch-mirror.build.mode=multi-version
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -280,6 +294,7 @@ jobs:
           provenance: false
           platforms: ${{ matrix.config.platforms }}
           outputs: type=image,name=${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             MM_PACKAGE=${{ matrix.config.build.args.MM_PACKAGE }}
             MOSTLYMATTER_BINARY=${{ matrix.config.build.args.MOSTLYMATTER_BINARY }}
