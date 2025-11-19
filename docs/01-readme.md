@@ -153,7 +153,7 @@ cosign verify \
   ghcr.io/this-is-tobi/mirror/mattermost:10.3.1
 ```
 
-For complete documentation on attestations and verification, see [Attestations Documentation](07-attestations.md).
+For complete documentation on attestations and verification, see the Attestations Documentation section.
 
 ## Version Policy
 
