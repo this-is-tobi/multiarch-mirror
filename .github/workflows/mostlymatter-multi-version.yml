@@ -272,7 +272,7 @@ jobs:
             org.opencontainers.image.title=Mostlymatter
             org.opencontainers.image.description=Multi-arch (amd64/arm64) mirror of Mostlymatter - Fork of Mattermost by Framasoft without user limitations
             org.opencontainers.image.vendor=this-is-tobi
-            io.github.multiarch-mirror.upstream.repo=framasoft/framateam/mostlymatter
+            io.github.multiarch-mirror.upstream.repo=framagit.org/framasoft/framateam/mostlymatter
             io.github.multiarch-mirror.upstream.version=${{ matrix.config.version }}
             io.github.multiarch-mirror.architectures=amd64,arm64
             io.github.multiarch-mirror.build.mode=multi-version
@@ -376,7 +376,7 @@ jobs:
             org.opencontainers.image.description=Multi-arch (amd64/arm64) mirror of Mostlymatter - Mattermost server with optimizations
             org.opencontainers.image.vendor=this-is-tobi
             org.opencontainers.image.version=${{ matrix.config.version }}
-            io.github.multiarch-mirror.upstream.repo=ctapang/mostlymatter
+            io.github.multiarch-mirror.upstream.repo=framagit.org/framasoft/framateam/mostlymatter
             io.github.multiarch-mirror.upstream.version=${{ matrix.config.version }}
             io.github.multiarch-mirror.architectures=amd64,arm64
             io.github.multiarch-mirror.build.mode=multi-version
