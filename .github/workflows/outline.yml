@@ -285,32 +285,28 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           logout: true
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}
-          tags: |
-            type=raw,value=${{ needs.infos.outputs.tag }},enable=${{ needs.infos.outputs.tag != '' }}
-            type=raw,value=latest
-
-      - name: Get image digest
-        id: digest
-        run: |
-          DIGEST=$(docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ needs.infos.outputs.tag }} --format '{{.Manifest.Digest}}')
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-
       - name: Generate SBOM
         run: |
-          trivy image --format spdx-json --output sbom-${{ env.IMAGE_BASE_NAME }}.spdx.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+          trivy image \
+            --format spdx-json \
+            --output sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ needs.infos.outputs.tag }}
 
-      - name: Attest SBOM
+      - name: Attest SBOM to version tag
         run: |
-          cosign attest --yes \
+          cosign attest \
+            --yes \
             --type spdxjson \
-            --predicate sbom-${{ env.IMAGE_BASE_NAME }}.spdx.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+            --predicate sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Attest SBOM to latest tag
+        run: |
+          cosign attest \
+            --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:latest
 
       - name: Sign base image version tag
         run: |
@@ -322,21 +318,21 @@ jobs:
           cosign sign --yes \
             ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:latest
 
-      - name: Generate and attest provenance
+      - name: Generate and attest provenance to version tag
         run: |
-          cat > provenance-${{ env.IMAGE_BASE_NAME }}.json <<EOF
+          cat > provenance.json <<EOF
           {
-            "buildType": "https://github.com/actions/workflow@v1",
+            "buildType": "https://github.com/slsa-framework/slsa/blob/v1.0/provenance",
             "builder": {
-              "id": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              "id": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
             },
             "invocation": {
               "configSource": {
-                "uri": "${{ github.server_url }}/${{ github.repository }}",
+                "uri": "git+${{ github.server_url }}/${{ github.repository }}",
                 "digest": {
                   "sha1": "${{ github.sha }}"
                 },
-                "entryPoint": "${{ github.workflow }}"
+                "entryPoint": ".github/workflows/outline.yml"
               },
               "parameters": {
                 "registry": "${{ inputs.REGISTRY }}",
@@ -362,13 +358,12 @@ jobs:
               "completeness": {
                 "parameters": true,
                 "environment": true,
-                "materials": false
-              },
-              "reproducible": false
+                "materials": true
+              }
             },
             "materials": [
               {
-                "uri": "${{ github.server_url }}/${{ github.repository }}",
+                "uri": "git+https://github.com/outline/outline",
                 "digest": {
                   "sha1": "${{ github.sha }}"
                 }
@@ -377,10 +372,71 @@ jobs:
           }
           EOF
 
-          cosign attest --yes \
-            --type slsaprovenance1 \
-            --predicate provenance-${{ env.IMAGE_BASE_NAME }}.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+          cosign attest \
+            --yes \
+            --type slsaprovenance \
+            --predicate provenance.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ needs.infos.outputs.tag }}
+
+      - name: Generate and attest provenance to latest tag
+        run: |
+          cat > provenance.json <<EOF
+          {
+            "buildType": "https://github.com/slsa-framework/slsa/blob/v1.0/provenance",
+            "builder": {
+              "id": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+            },
+            "invocation": {
+              "configSource": {
+                "uri": "git+${{ github.server_url }}/${{ github.repository }}",
+                "digest": {
+                  "sha1": "${{ github.sha }}"
+                },
+                "entryPoint": ".github/workflows/outline.yml"
+              },
+              "parameters": {
+                "registry": "${{ inputs.REGISTRY }}",
+                "namespace": "${{ inputs.NAMESPACE }}",
+                "version": "${{ needs.infos.outputs.tag }}",
+                "multi_arch": "${{ inputs.MULTI_ARCH }}",
+                "use_qemu": "${{ inputs.USE_QEMU }}",
+                "image_type": "base"
+              },
+              "environment": {
+                "runner": "ubuntu-latest",
+                "arch": "$(uname -m)",
+                "os": "$(uname -s)",
+                "os_version": "$(lsb_release -d | cut -f2)",
+                "docker_version": "$(docker --version)",
+                "buildx_version": "$(docker buildx version)"
+              }
+            },
+            "metadata": {
+              "buildInvocationId": "${{ github.run_id }}",
+              "buildStartedOn": "${{ github.event.repository.updated_at }}",
+              "buildFinishedOn": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "completeness": {
+                "parameters": true,
+                "environment": true,
+                "materials": true
+              }
+            },
+            "materials": [
+              {
+                "uri": "git+https://github.com/outline/outline",
+                "digest": {
+                  "sha1": "${{ github.sha }}"
+                }
+              }
+            ]
+          }
+          EOF
+
+          cosign attest \
+            --yes \
+            --type slsaprovenance \
+            --predicate provenance.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:latest
 
   build:
     name: Build application

@@ -444,34 +444,30 @@ jobs:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          logout: true
-
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}
-          tags: |
-            type=raw,value=${{ matrix.config.version }}
-            type=raw,value=latest,enable=${{ matrix.config.is_latest }}
-
-      - name: Get image digest
-        id: digest
-        run: |
-          DIGEST=$(docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ matrix.config.version }} --format '{{.Manifest.Digest}}')
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: Generate SBOM
         run: |
-          trivy image --format spdx-json --output sbom-${{ env.IMAGE_BASE_NAME }}-${{ matrix.config.version }}.spdx.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+          trivy image \
+            --format spdx-json \
+            --output sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ matrix.config.version }}
 
-      - name: Attest SBOM
+      - name: Attest SBOM to version tag
         run: |
-          cosign attest --yes \
+          cosign attest \
+            --yes \
             --type spdxjson \
-            --predicate sbom-${{ env.IMAGE_BASE_NAME }}-${{ matrix.config.version }}.spdx.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+            --predicate sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ matrix.config.version }}
+
+      - name: Attest SBOM to latest tag
+        if: ${{ matrix.config.is_latest }}
+        run: |
+          cosign attest \
+            --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:latest
 
       - name: Sign base image version tag
         run: |
@@ -486,19 +482,19 @@ jobs:
 
       - name: Generate and attest provenance
         run: |
-          cat > provenance-${{ env.IMAGE_BASE_NAME }}-${{ matrix.config.version }}.json <<EOF
+          cat > provenance.json <<EOF
           {
-            "buildType": "https://github.com/actions/workflow@v1",
+            "buildType": "https://github.com/slsa-framework/slsa/blob/v1.0/provenance",
             "builder": {
-              "id": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              "id": "https://github.com/${{ github.repository }}/actions/workflows/${{ github.workflow }}"
             },
             "invocation": {
               "configSource": {
-                "uri": "${{ github.server_url }}/${{ github.repository }}",
+                "uri": "git+https://github.com/${{ github.repository }}",
                 "digest": {
                   "sha1": "${{ github.sha }}"
                 },
-                "entryPoint": "${{ github.workflow }}"
+                "entryPoint": ".github/workflows/outline-multi-version.yml"
               },
               "parameters": {
                 "registry": "${{ inputs.REGISTRY }}",
@@ -525,25 +521,34 @@ jobs:
               "completeness": {
                 "parameters": true,
                 "environment": true,
-                "materials": false
-              },
-              "reproducible": false
+                "materials": true
+              }
             },
             "materials": [
               {
-                "uri": "${{ github.server_url }}/${{ github.repository }}",
+                "uri": "git+https://github.com/outline/outline",
                 "digest": {
-                  "sha1": "${{ github.sha }}"
+                  "gitCommit": "v${{ matrix.config.version }}"
                 }
               }
             ]
           }
           EOF
+          
+          cosign attest \
+            --yes \
+            --type slsaprovenance \
+            --predicate provenance.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${{ matrix.config.version }}
 
-          cosign attest --yes \
-            --type slsaprovenance1 \
-            --predicate provenance-${{ env.IMAGE_BASE_NAME }}-${{ matrix.config.version }}.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}@${{ steps.digest.outputs.digest }}
+      - name: Attest provenance to latest tag
+        if: ${{ matrix.config.is_latest }}
+        run: |
+          cosign attest \
+            --yes \
+            --type slsaprovenance \
+            --predicate provenance.json \
+            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:latest
 
   build:
     name: Build ${{ matrix.config.version }} / ${{ matrix.config.arch }}
