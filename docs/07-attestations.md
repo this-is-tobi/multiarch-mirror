@@ -113,7 +113,7 @@ For each built image, the attestation process:
 
 1. **Install Tools**
    - Cosign v3 (via sigstore/cosign-installer@v3)
-   - Trivy (via aquasecurity/setup-trivy@v0.2.0)
+   - Trivy (via aquasecurity/setup-trivy@v0.2.5)
 
 2. **Generate SBOM**
    - Scan image with Trivy

@@ -130,7 +130,7 @@ Error: failed to solve: process "/bin/sh -c go build" did not complete successfu
 
 4. **Use buildx properly:**
    ```yaml
-   - uses: docker/build-push-action@v5
+   - uses: docker/build-push-action@v6
      with:
        platforms: linux/arm64
        # NOT: platform: linux/arm64 (singular, wrong!)
@@ -186,7 +186,7 @@ Error: undefined reference for ARM64
 
 1. **Implement cache rotation:**
    ```yaml
-   - uses: docker/build-push-action@v5
+   - uses: docker/build-push-action@v6
      with:
        cache-from: type=local,src=/tmp/.buildx-cache
        cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
@@ -323,7 +323,7 @@ docker manifest inspect ghcr.io/.../myapp:latest
 
 2. **Verify platform flag:**
    ```yaml
-   - uses: docker/build-push-action@v5
+   - uses: docker/build-push-action@v6
      with:
        platforms: ${{ matrix.images.platforms }}  # linux/arm64
    ```

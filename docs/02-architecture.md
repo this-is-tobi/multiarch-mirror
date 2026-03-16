@@ -198,7 +198,7 @@ attest job:
 │  │  ─────────────────────────────────────────────────────────────────────────│  │
 │  │  1. Install tools:                                                        │  │
 │  │     • Cosign v3 (sigstore/cosign-installer@v3)                            │  │
-│  │     • Trivy (aquasecurity/setup-trivy@v0.2.0)                             │  │
+│  │     • Trivy (aquasecurity/setup-trivy@v0.2.5)                             │  │
 │  │                                                                           │  │
 │  │  2. Generate SBOM (Software Bill of Materials):                           │  │
 │  │     trivy image --format spdx-json --output sbom.spdx.json <image>        │  │
@@ -469,7 +469,7 @@ strategy:
 5. **Build Docker image**
    ```yaml
    - name: Build and push
-     uses: docker/build-push-action@v5
+     uses: docker/build-push-action@v6
      with:
        platforms: ${{ matrix.images.platforms }}
        outputs: type=image,name=...,push-by-digest=true,name-canonical=true,push=true

@@ -155,7 +155,7 @@ jobs:
 
       - name: Build and push docker image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.images.build.context }}
           file: ${{ matrix.images.build.dockerfile }}
@@ -275,7 +275,7 @@ jobs:
         uses: sigstore/cosign-installer@v3
 
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.0
+        uses: aquasecurity/setup-trivy@v0.2.5
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -506,7 +506,7 @@ jobs:
       - name: Build and push docker image
         if: ${{ needs.infos.outputs.image-status == '404' }}
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.images.build.context }}
           file: ${{ matrix.images.build.dockerfile }}
@@ -631,7 +631,7 @@ jobs:
         uses: sigstore/cosign-installer@v3
 
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.0
+        uses: aquasecurity/setup-trivy@v0.2.5
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
