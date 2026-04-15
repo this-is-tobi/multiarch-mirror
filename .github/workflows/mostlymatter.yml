@@ -57,7 +57,7 @@ jobs:
       image-status: ${{ steps.infos.outputs.IMAGE_STATUS }}
     steps:
       - name: Checks-out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Generate matrix for build and get infos
         id: infos
@@ -135,10 +135,10 @@ jobs:
           cat ./server/build/Dockerfile
 
       - name: Set up Docker buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
   
       - name: Cache Docker layers
-        uses: actions/cache@v4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: /tmp/.buildx-cache
           key: buildx-${{ matrix.images.platforms }}-${{ env.IMAGE_NAME }}-${{ needs.infos.outputs.tag }}
@@ -146,12 +146,12 @@ jobs:
             buildx-${{ matrix.images.platforms }}-${{ env.IMAGE_NAME }}-
 
       - name: Set up QEMU (for multi platform build)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         if: ${{ inputs.USE_QEMU }}
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}
           labels: |
@@ -163,7 +163,7 @@ jobs:
             io.github.multiarch-mirror.architectures=amd64,arm64
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}
@@ -172,7 +172,7 @@ jobs:
 
       - name: Build and push docker image
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: ${{ matrix.images.build.context }}
           file: ${{ matrix.images.build.dockerfile }}
@@ -201,7 +201,7 @@ jobs:
           touch "/tmp/digests/${{ env.IMAGE_NAME }}/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: digests-${{ env.IMAGE_NAME }}-${{ matrix.images.arch }}
           path: /tmp/digests/${{ env.IMAGE_NAME }}/*
@@ -217,18 +217,18 @@ jobs:
       - build
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: digests-${{ env.IMAGE_NAME }}-*
           path: /tmp/digests/${{ env.IMAGE_NAME }}
           merge-multiple: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -245,7 +245,7 @@ jobs:
             io.github.multiarch-mirror.build.mode=single-version
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}
@@ -287,13 +287,13 @@ jobs:
       - merge
     steps:
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.5
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}

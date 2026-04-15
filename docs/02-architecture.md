@@ -198,7 +198,7 @@ attest job:
 │  │  ─────────────────────────────────────────────────────────────────────────│  │
 │  │  1. Install tools:                                                        │  │
 │  │     • Cosign v3 (sigstore/cosign-installer@v3)                            │  │
-│  │     • Trivy (aquasecurity/setup-trivy@v0.2.5)                             │  │
+│  │     • Trivy (aquasecurity/setup-trivy@v0.2.6)                             │  │
 │  │                                                                           │  │
 │  │  2. Generate SBOM (Software Bill of Materials):                           │  │
 │  │     trivy image --format spdx-json --output sbom.spdx.json <image>        │  │
