@@ -61,6 +61,14 @@ jobs:
       - name: Checks-out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ inputs.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: true
+
       - name: Generate matrix for build and get infos
         id: infos
         run: |
@@ -80,24 +88,16 @@ jobs:
           echo "BUILD_MATRIX=$BUILD_MATRIX" >> $GITHUB_OUTPUT
 
           # Get current mirrored version
-          IMAGE_STATUS_BASE=$(curl \
-            --head \
-            --silent \
-            --write-out '%{http_code}' \
-            --output /dev/null \
-            -H "Authorization: Bearer $(echo -n ${{ secrets.GITHUB_TOKEN }} | base64)" \
-            https://${{ inputs.REGISTRY }}/v2/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}/manifests/${TAG})
-          echo "Status code of mirror base image: $IMAGE_STATUS_BASE"
-          echo "IMAGE_STATUS_BASE=$IMAGE_STATUS_BASE" >> $GITHUB_OUTPUT
-          IMAGE_STATUS=$(curl \
-            --head \
-            --silent \
-            --write-out '%{http_code}' \
-            --output /dev/null \
-            -H "Authorization: Bearer $(echo -n ${{ secrets.GITHUB_TOKEN }} | base64)" \
-            https://${{ inputs.REGISTRY }}/v2/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}/manifests/${TAG})
-          echo "Status code of mirror image: $IMAGE_STATUS"
-          echo "IMAGE_STATUS=$IMAGE_STATUS" >> $GITHUB_OUTPUT
+          if docker manifest inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_BASE_NAME }}:${TAG} > /dev/null 2>&1; then
+            echo "IMAGE_STATUS_BASE=200" >> $GITHUB_OUTPUT
+          else
+            echo "IMAGE_STATUS_BASE=404" >> $GITHUB_OUTPUT
+          fi
+          if docker manifest inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${TAG} > /dev/null 2>&1; then
+            echo "IMAGE_STATUS=200" >> $GITHUB_OUTPUT
+          else
+            echo "IMAGE_STATUS=404" >> $GITHUB_OUTPUT
+          fi
 
   build-base:
     name: Build application

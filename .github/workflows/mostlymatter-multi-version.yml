@@ -66,6 +66,14 @@ jobs:
       - name: Checks-out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ inputs.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: true
+
       - name: Generate flattened build matrix
         id: infos
         run: |
@@ -133,13 +141,11 @@ jobs:
             fi
             
             # Check if image already exists in GHCR
-            IMAGE_STATUS=$(curl \
-              --head \
-              --silent \
-              --write-out '%{http_code}' \
-              --output /dev/null \
-              -H "Authorization: Bearer $(echo -n '${{ secrets.GITHUB_TOKEN }}' | base64)" \
-              "https://${{ inputs.REGISTRY }}/v2/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}/manifests/${VERSION}")
+            if docker manifest inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${VERSION} > /dev/null 2>&1; then
+              IMAGE_STATUS="200"
+            else
+              IMAGE_STATUS="404"
+            fi
             
             echo "  GHCR image status: $IMAGE_STATUS"
             
