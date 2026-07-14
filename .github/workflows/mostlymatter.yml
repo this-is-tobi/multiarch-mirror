@@ -219,6 +219,8 @@ jobs:
     needs:
       - infos
       - build
+    outputs:
+      digest: ${{ steps.digest.outputs.value }}
     steps:
       - name: Download digests
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -282,119 +284,31 @@ jobs:
         run: |
           docker buildx imagetools inspect ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
 
+      - name: Get image digest
+        id: digest
+        run: |
+          DIGEST=$(docker buildx imagetools inspect --raw \
+            "${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}" \
+            | sha256sum | cut -d' ' -f1)
+          echo "value=sha256:${DIGEST}" >> $GITHUB_OUTPUT
+
   attest:
     name: Generate and attach attestations
-    runs-on: ubuntu-latest
-    if: ${{ needs.infos.outputs.image-status == '404' }}
     needs:
       - infos
       - merge
-    steps:
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
-
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: ${{ inputs.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate SBOM
-        run: |
-          trivy image \
-            --format spdx-json \
-            --output sbom.spdx.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
-
-      - name: Attest SBOM to version tag
-        run: |
-          cosign attest \
-            --yes \
-            --type spdxjson \
-            --predicate sbom.spdx.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
-
-      - name: Attest SBOM to latest tag
-        run: |
-          cosign attest \
-            --yes \
-            --type spdxjson \
-            --predicate sbom.spdx.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
-
-      - name: Sign version tag
-        run: |
-          cosign sign --yes ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
-
-      - name: Sign latest tag
-        run: |
-          cosign sign --yes ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
-
-      - name: Generate and attest provenance
-        run: |
-          cat > provenance.json <<EOF
-          {
-            "buildType": "https://github.com/slsa-framework/slsa/blob/v1.0/provenance",
-            "builder": {
-              "id": "https://github.com/${{ github.repository }}/actions/workflows/${{ github.workflow }}"
-            },
-            "invocation": {
-              "configSource": {
-                "uri": "git+https://github.com/${{ github.repository }}",
-                "digest": {
-                  "sha1": "${{ github.sha }}"
-                },
-                "entryPoint": ".github/workflows/mostlymatter.yml"
-              },
-              "parameters": {
-                "registry": "${{ inputs.REGISTRY }}",
-                "namespace": "${{ inputs.NAMESPACE }}",
-                "version": "${{ needs.infos.outputs.tag }}",
-                "multi_arch": "${{ inputs.MULTI_ARCH }}",
-                "use_qemu": "${{ inputs.USE_QEMU }}"
-              },
-              "environment": {
-                "runner": "ubuntu-latest",
-                "arch": "$(uname -m)",
-                "os": "$(uname -s)",
-                "os_version": "$(lsb_release -d | cut -f2)",
-                "docker_version": "$(docker --version)",
-                "buildx_version": "$(docker buildx version)"
-              }
-            },
-            "metadata": {
-              "buildInvocationId": "${{ github.run_id }}",
-              "buildStartedOn": "${{ github.event.repository.updated_at }}",
-              "buildFinishedOn": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-              "completeness": {
-                "parameters": true,
-                "environment": true,
-                "materials": true
-              }
-            },
-            "materials": [
-              {
-                "uri": "git+https://framagit.org/framasoft/framateam/mostlymatter",
-                "digest": {
-                  "gitCommit": "v${{ needs.infos.outputs.tag }}-limitless"
-                }
-              }
-            ]
-          }
-          EOF
-          
-          cosign attest \
-            --yes \
-            --type slsaprovenance \
-            --predicate provenance.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ needs.infos.outputs.tag }}
-          
-          cosign attest \
-            --yes \
-            --type slsaprovenance \
-            --predicate provenance.json \
-            ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+    if: ${{ needs.infos.outputs.image-status == '404' }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@1b948c7bb03d3dde4684983dfe4efb4685d0a925
+    with:
+      IMAGE_NAME: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/mostlymatter
+      DIGEST: ${{ needs.merge.outputs.digest }}
+      SIGN: true
+      SBOM: true
+      PROVENANCE: true
+      PROVENANCE_PREDICATE_TYPE: https://slsa.dev/provenance/v1
+      PROVENANCE_PREDICATE: '{"buildDefinition":{"buildType":"https://github.com/${{ github.repository }}/blob/main/.github/workflows/mostlymatter.yml","externalParameters":{"registry":"${{ inputs.REGISTRY }}","namespace":"${{ inputs.NAMESPACE }}","version":"${{ needs.infos.outputs.tag }}","multiArch":"${{ inputs.MULTI_ARCH }}","useQemu":"${{ inputs.USE_QEMU }}"},"resolvedDependencies":[{"uri":"git+https://framagit.org/framasoft/framateam/mostlymatter","digest":{"gitCommit":"v${{ needs.infos.outputs.tag }}-limitless"}}]},"runDetails":{"builder":{"id":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"},"metadata":{"invocationId":"${{ github.run_id }}"}}}'
