@@ -75,6 +75,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      attestations: write
     with:
       REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
       NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
@@ -90,6 +91,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      attestations: write
     with:
       REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
       NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
@@ -106,6 +108,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      attestations: write
     with:
       REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
       NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
@@ -121,6 +124,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      attestations: write
     with:
       REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
       NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
@@ -137,6 +141,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      attestations: write
     with:
       REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
       NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
@@ -152,6 +157,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      attestations: write
     with:
       REGISTRY: ${{ needs.expose-vars.outputs.REGISTRY }}
       NAMESPACE: ${{ needs.expose-vars.outputs.NAMESPACE }}
