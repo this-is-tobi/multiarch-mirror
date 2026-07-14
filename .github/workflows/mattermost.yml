@@ -42,6 +42,7 @@ permissions:
   contents: read
   packages: write
   id-token: write  # Required for cosign keyless signing
+  attestations: write
 
 env:
   IMAGE_NAME: mattermost
