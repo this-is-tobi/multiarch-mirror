@@ -311,5 +311,5 @@ jobs:
       SIGN: true
       SBOM: true
       PROVENANCE: true
-      PROVENANCE_PREDICATE_TYPE: https://slsa.dev/provenance/v1
-      PROVENANCE_PREDICATE: '{"buildDefinition":{"buildType":"https://github.com/${{ github.repository }}/blob/main/.github/workflows/mostlymatter.yml","externalParameters":{"registry":"${{ inputs.REGISTRY }}","namespace":"${{ inputs.NAMESPACE }}","version":"${{ needs.infos.outputs.tag }}","multiArch":"${{ inputs.MULTI_ARCH }}","useQemu":"${{ inputs.USE_QEMU }}"},"resolvedDependencies":[{"uri":"git+https://framagit.org/framasoft/framateam/mostlymatter","digest":{"gitCommit":"v${{ needs.infos.outputs.tag }}-limitless"}}]},"runDetails":{"builder":{"id":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"},"metadata":{"invocationId":"${{ github.run_id }}"}}}'
+      PREDICATE_TYPE: https://this-is-tobi.github.io/multiarch-mirror/mirror/v1
+      PREDICATE: '{"mirror":{"registry":"${{ inputs.REGISTRY }}","namespace":"${{ inputs.NAMESPACE }}","image":"mostlymatter","architectures":["amd64","arm64"],"multiArch":${{ inputs.MULTI_ARCH }},"buildMode":"single-version"},"upstream":{"repository":"framasoft/framateam/mostlymatter","source":"https://framagit.org/framasoft/framateam/mostlymatter","version":"${{ needs.infos.outputs.tag }}","ref":"v${{ needs.infos.outputs.tag }}-limitless"}}'
