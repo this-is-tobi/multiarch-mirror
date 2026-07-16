@@ -288,8 +288,8 @@ jobs:
       SIGN: true
       SBOM: true
       PROVENANCE: true
-      PROVENANCE_PREDICATE_TYPE: https://slsa.dev/provenance/v1
-      PROVENANCE_PREDICATE: '{"buildDefinition":{"buildType":"https://github.com/${{ github.repository }}/blob/main/.github/workflows/outline.yml","externalParameters":{"registry":"${{ inputs.REGISTRY }}","namespace":"${{ inputs.NAMESPACE }}","version":"${{ needs.infos.outputs.tag }}","multiArch":"${{ inputs.MULTI_ARCH }}","useQemu":"${{ inputs.USE_QEMU }}","imageType":"base"},"resolvedDependencies":[{"uri":"git+https://github.com/outline/outline","digest":{"gitCommit":"v${{ needs.infos.outputs.tag }}"}}]},"runDetails":{"builder":{"id":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"},"metadata":{"invocationId":"${{ github.run_id }}"}}}'
+      PREDICATE_TYPE: https://this-is-tobi.github.io/multiarch-mirror/mirror/v1
+      PREDICATE: '{"mirror":{"registry":"${{ inputs.REGISTRY }}","namespace":"${{ inputs.NAMESPACE }}","image":"base-outline","imageType":"base","architectures":["amd64","arm64"],"multiArch":${{ inputs.MULTI_ARCH }},"buildMode":"single-version"},"upstream":{"repository":"outline/outline","source":"https://github.com/outline/outline","version":"${{ needs.infos.outputs.tag }}","ref":"v${{ needs.infos.outputs.tag }}"}}'
 
   build:
     name: Build application
@@ -501,5 +501,5 @@ jobs:
       SIGN: true
       SBOM: true
       PROVENANCE: true
-      PROVENANCE_PREDICATE_TYPE: https://slsa.dev/provenance/v1
-      PROVENANCE_PREDICATE: '{"buildDefinition":{"buildType":"https://github.com/${{ github.repository }}/blob/main/.github/workflows/outline.yml","externalParameters":{"registry":"${{ inputs.REGISTRY }}","namespace":"${{ inputs.NAMESPACE }}","version":"${{ needs.infos.outputs.tag }}","multiArch":"${{ inputs.MULTI_ARCH }}","useQemu":"${{ inputs.USE_QEMU }}"},"resolvedDependencies":[{"uri":"git+https://github.com/outline/outline","digest":{"gitCommit":"v${{ needs.infos.outputs.tag }}"}}]},"runDetails":{"builder":{"id":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"},"metadata":{"invocationId":"${{ github.run_id }}"}}}'
+      PREDICATE_TYPE: https://this-is-tobi.github.io/multiarch-mirror/mirror/v1
+      PREDICATE: '{"mirror":{"registry":"${{ inputs.REGISTRY }}","namespace":"${{ inputs.NAMESPACE }}","image":"outline","architectures":["amd64","arm64"],"multiArch":${{ inputs.MULTI_ARCH }},"buildMode":"single-version"},"upstream":{"repository":"outline/outline","source":"https://github.com/outline/outline","version":"${{ needs.infos.outputs.tag }}","ref":"v${{ needs.infos.outputs.tag }}"}}'
