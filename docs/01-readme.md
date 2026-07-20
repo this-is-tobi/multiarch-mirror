@@ -43,8 +43,8 @@ This repository bridges that gap by creating multi-architecture images that work
 - **SBOM (Software Bill of Materials)** - Complete dependency inventory in SPDX format
 - **Cryptographic signatures** - Cosign keyless signing with GitHub OIDC
 - **SLSA Provenance** - Build metadata and traceability
-- All attestations stored in GHCR as OCI artifacts
-- Verifiable with standard Cosign tools
+- All attestations stored in GitHub's attestations database and in GHCR as OCI artifacts
+- Verifiable with standard tooling: `gh attestation verify` or Cosign
 
 ### Production Ready
 - Published to GitHub Container Registry (GHCR)
@@ -143,14 +143,17 @@ docker manifest inspect ghcr.io/this-is-tobi/mirror/mattermost:latest
 All images include comprehensive security attestations. To verify an image:
 
 ```bash
-# Install Cosign
-brew install cosign
+# Install Cosign and the GitHub CLI
+brew install cosign gh
 
-# Verify image signature
+# Verify image signature (signed by the shared reusable workflow)
 cosign verify \
-  --certificate-identity-regexp "https://github.com/this-is-tobi/multiarch-mirror" \
+  --certificate-identity-regexp "^https://github.com/this-is-tobi/github-workflows/\.github/workflows/attest-docker\.yml@" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  ghcr.io/this-is-tobi/mirror/mattermost:10.3.1
+  ghcr.io/this-is-tobi/mirror/mattermost:latest
+
+# Verify SLSA build provenance
+gh attestation verify oci://ghcr.io/this-is-tobi/mirror/mattermost:latest --owner this-is-tobi
 ```
 
 For complete documentation on attestations and verification, see the Attestations Documentation section.
