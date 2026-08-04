@@ -67,12 +67,21 @@ Latest release:
 2. **Check authentication:**
    ```yaml
    - name: Check image exists
+     env:
+       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
      run: |
-       TOKEN=$(echo ${{ secrets.GITHUB_TOKEN }} | base64)
+       TOKEN=$(printf '%s' "$GH_TOKEN" | base64 -w0)
        STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
          -H "Authorization: Bearer ${TOKEN}" \
          https://ghcr.io/v2/${{ inputs.NAMESPACE }}/myapp/manifests/${{ steps.release.outputs.tag }})
    ```
+
+   Encode with `printf` and `base64 -w0`, not `echo ... | base64`. `echo` appends
+   a newline to the token before encoding, and `base64` wraps its output at 76
+   columns — harmless for a short token, but `GITHUB_TOKEN` is being migrated to
+   a ~520 character format that encodes to several wrapped lines and produces a
+   malformed `Authorization` header. See the
+   [changelog](https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/).
 
 3. **Alternative method using docker:**
    ```yaml

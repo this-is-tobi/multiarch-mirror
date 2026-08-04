@@ -210,8 +210,13 @@ jobs:
 
       - name: Check if image already exists
         id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TOKEN=$(echo ${{ secrets.GITHUB_TOKEN }} | base64)
+          # `base64` wraps at 76 columns by default, which would split the
+          # header value across lines, and `echo` would append a newline to the
+          # token before it is encoded.
+          TOKEN=$(printf '%s' "$GH_TOKEN" | base64 -w0)
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${TOKEN}" \
             https://ghcr.io/v2/${{ inputs.NAMESPACE }}/myapp/manifests/${{ steps.release.outputs.tag }})
