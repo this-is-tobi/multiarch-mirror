@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "semanticCommits": "enabled",
+  "packageRules": [
+    {
+      "description": "This repo ships no package, so the config:recommended default of 'chore(deps)' would prefix every PR here without carrying any signal. Workflow bumps are CI changes, matching the existing 'ci(workflows):' history.",
+      "matchManagers": ["github-actions"],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "workflows"
+    },
+    {
+      "description": "Own reusable workflows are referenced by the floating v0 tag. A tag that never moves is invisible to Renovate - only the digest pin added by helpers:pinGitHubActionDigests turns a v0.x release into a visible update, and the '# v0' comment it keeps alongside preserves the readable major. Grouped so every workflow calling into github-workflows moves in one PR instead of drifting apart.",
+      "matchDepNames": ["this-is-tobi/github-workflows"],
+      "groupName": "reusable workflows"
+    }
+  ]
+}
