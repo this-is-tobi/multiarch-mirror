@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}
@@ -285,7 +285,7 @@ jobs:
             io.github.multiarch-mirror.image.type=base
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}
@@ -387,7 +387,7 @@ jobs:
             io.github.multiarch-mirror.image.type=base
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}
@@ -549,7 +549,7 @@ jobs:
             io.github.multiarch-mirror.build.mode=multi-version
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}
@@ -654,7 +654,7 @@ jobs:
             io.github.multiarch-mirror.build.mode=multi-version
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ inputs.REGISTRY }}
           username: ${{ github.actor }}
