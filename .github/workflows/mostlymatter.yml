@@ -304,7 +304,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@0847f28395ffa621e0e471133279bc407e1bb65c # v0
+    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@6d89448ee141d83057d59d530e2f3d1f9df3430a # v0
     with:
       IMAGE_NAME: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/mostlymatter
       DIGEST: ${{ needs.merge.outputs.digest }}
