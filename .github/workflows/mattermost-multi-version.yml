@@ -428,7 +428,7 @@ jobs:
       fail-fast: false
       matrix:
         config: ${{ fromJSON(needs.prepare-merge.outputs.merge-matrix) }}
-    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@dd476ed281cc56736361c21b078f882f8b3cd3b6 # v0
+    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@cae676d3c0e91fbddfe7f7d25c73868a6da44184 # v0
     with:
       IMAGE_NAME: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/mattermost
       DIGEST: ${{ fromJSON(needs.collect-digests.outputs.digests)[matrix.config.version] }}
