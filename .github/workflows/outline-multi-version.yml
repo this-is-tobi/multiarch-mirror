@@ -484,7 +484,7 @@ jobs:
       fail-fast: false
       matrix:
         config: ${{ fromJSON(needs.prepare-merge-base.outputs.merge-matrix) }}
-    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@55d9e5bfded7ed785088ed5807dbbb46b7c1aa76 # v0
+    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@4d73e676686b83489f09dcd2a555edc6d4f6c3b3 # v0
     with:
       IMAGE_NAME: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/base-outline
       DIGEST: ${{ fromJSON(needs.collect-digests-base.outputs.digests)[matrix.config.version] }}
@@ -748,7 +748,7 @@ jobs:
       fail-fast: false
       matrix:
         config: ${{ fromJSON(needs.prepare-merge.outputs.merge-matrix) }}
-    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@55d9e5bfded7ed785088ed5807dbbb46b7c1aa76 # v0
+    uses: this-is-tobi/github-workflows/.github/workflows/attest-docker.yml@4d73e676686b83489f09dcd2a555edc6d4f6c3b3 # v0
     with:
       IMAGE_NAME: ${{ inputs.REGISTRY }}/${{ inputs.NAMESPACE }}/outline
       DIGEST: ${{ fromJSON(needs.collect-digests.outputs.digests)[matrix.config.version] }}
